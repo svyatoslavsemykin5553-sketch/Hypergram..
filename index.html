@@ -1,0 +1,1342 @@
+```html
+<!DOCTYPE html>
+<html lang="ru" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>HYPERGRAM — Мессенджер</title>
+
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'] }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; font-family: 'Inter', sans-serif; }
+
+    .custom-scroll::-webkit-scrollbar { width: 5px; height: 5px; }
+    .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.25); border-radius: 9999px; }
+
+    .chat-wallpaper-dark {
+      background-color: #0e1621;
+      background-image:
+        radial-gradient(circle at 18% 20%, rgba(56, 189, 248, 0.08) 0%, transparent 45%),
+        radial-gradient(circle at 82% 80%, rgba(99, 102, 241, 0.09) 0%, transparent 45%),
+        radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 24px 24px;
+    }
+
+    .chat-wallpaper-light {
+      background-color: #e6eef7;
+      background-image:
+        radial-gradient(circle at 18% 20%, rgba(56, 189, 248, 0.14) 0%, transparent 45%),
+        radial-gradient(circle at 82% 80%, rgba(99, 102, 241, 0.12) 0%, transparent 45%),
+        radial-gradient(rgba(15, 23, 42, 0.06) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 24px 24px;
+    }
+
+    @keyframes fadeSlideUp {
+      from { opacity: 0; transform: translateY(8px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .msg-animate { animation: fadeSlideUp 0.18s ease-out forwards; }
+
+    @keyframes highlightFlash {
+      0% { background-color: rgba(56, 189, 248, 0.35); }
+      100% { background-color: transparent; }
+    }
+    .msg-highlight { animation: highlightFlash 1.4s ease-out; border-radius: 14px; }
+  </style>
+</head>
+
+<body class="bg-[#0e1621] text-slate-100 select-none">
+
+  <!-- =========================================================
+       ЭКРАН ВХОДА И РЕГИСТРАЦИИ (AUTH SCREEN)
+  ========================================================== -->
+  <div id="authScreen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0e1621] chat-wallpaper-dark">
+    <div class="w-full max-w-md rounded-3xl bg-white dark:bg-[#17212b] border border-slate-200 dark:border-[#232e3c] shadow-2xl p-6 sm:p-8 space-y-6 msg-animate">
+      <!-- Логотип -->
+      <div class="text-center space-y-2">
+        <div class="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-tr from-sky-500 via-blue-500 to-indigo-600 flex items-center justify-center shadow-xl shadow-sky-500/25">
+          <svg class="w-9 h-9 text-white" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M21.426 2.574a1.25 1.25 0 0 0-1.334-.266L2.88 9.21a1.25 1.25 0 0 0 .08 2.345l5.962 1.987 2.25 5.962a1.25 1.25 0 0 0 2.337.05l8.165-15.63a1.25 1.25 0 0 0-.248-1.35Z"/>
+          </svg>
+        </div>
+        <h1 class="text-2xl font-extrabold tracking-wide bg-gradient-to-r from-sky-400 to-indigo-500 bg-clip-text text-transparent">HYPERGRAM</h1>
+        <p class="text-xs text-slate-500 dark:text-[#7f91a4]">Быстрый мессенджер в реальном времени</p>
+      </div>
+
+      <!-- Вкладки Вход / Регистрация -->
+      <div class="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-slate-100 dark:bg-[#0e1621]">
+        <button id="tabLogin" onclick="setAuthMode('login')" class="py-2 rounded-xl text-sm font-semibold bg-sky-500 text-white shadow transition">Вход</button>
+        <button id="tabRegister" onclick="setAuthMode('register')" class="py-2 rounded-xl text-sm font-semibold text-slate-500 dark:text-[#7f91a4] hover:text-slate-900 dark:hover:text-white transition">Регистрация</button>
+      </div>
+
+      <!-- Форма -->
+      <form id="authForm" onsubmit="handleAuthSubmit(event)" class="space-y-4">
+        <div id="registerNameField" class="hidden">
+          <label class="block text-xs font-semibold text-slate-500 dark:text-[#7f91a4] mb-1.5">Отображаемое имя</label>
+          <input id="authDisplayName" type="text" placeholder="Например: Алексей" class="w-full px-4 py-3 rounded-xl bg-slate-100 dark:bg-[#242f3d] text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/60 transition" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 dark:text-[#7f91a4] mb-1.5">Логин (никнейм)</label>
+          <input id="authUsername" type="text" required placeholder="@username" autocomplete="username" class="w-full px-4 py-3 rounded-xl bg-slate-100 dark:bg-[#242f3d] text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/60 transition" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 dark:text-[#7f91a4] mb-1.5">Пароль</label>
+          <input id="authPassword" type="password" required placeholder="Введите пароль" autocomplete="current-password" class="w-full px-4 py-3 rounded-xl bg-slate-100 dark:bg-[#242f3d] text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/60 transition" />
+        </div>
+
+        <div id="authError" class="hidden p-3 rounded-xl bg-red-500/15 border border-red-500/30 text-red-400 text-xs font-medium text-center"></div>
+
+        <button id="authSubmitBtn" type="submit" class="w-full py-3 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-sm shadow-lg shadow-sky-500/25 transition active:scale-[0.99]">
+          Войти в HYPERGRAM
+        </button>
+      </form>
+
+      <div id="syncStatusBadge" class="text-center text-[11px] text-slate-400 dark:text-[#7f91a4]">
+        Подключение к серверу...
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       ОСНОВНОЙ ИНТЕРФЕЙС МЕССЕНДЖЕРА
+  ========================================================== -->
+  <div id="app" class="hidden h-screen w-screen flex overflow-hidden relative bg-slate-100 dark:bg-[#0e1621] text-slate-900 dark:text-slate-100 transition-colors duration-200">
+
+    <!-- ЛЕВАЯ ПАНЕЛЬ: Список чатов -->
+    <aside id="leftSidebar" class="w-full md:w-[340px] lg:w-[360px] flex-shrink-0 h-full flex flex-col bg-white dark:bg-[#17212b] border-r border-slate-200 dark:border-[#232e3c] z-20">
+      <!-- Шапка -->
+      <div class="px-3 pt-3 pb-2 flex items-center gap-2">
+        <button onclick="openDrawer()" title="Меню" class="p-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-[#202b36] text-slate-600 dark:text-slate-300 transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
+          </svg>
+        </button>
+
+        <div class="flex items-center gap-2 flex-1 min-w-0">
+          <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center shadow flex-shrink-0">
+            <svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M21.426 2.574a1.25 1.25 0 0 0-1.334-.266L2.88 9.21a1.25 1.25 0 0 0 .08 2.345l5.962 1.987 2.25 5.962a1.25 1.25 0 0 0 2.337.05l8.165-15.63a1.25 1.25 0 0 0-.248-1.35Z"/>
+            </svg>
+          </div>
+          <div class="truncate">
+            <div class="font-extrabold text-sm tracking-wide bg-gradient-to-r from-sky-400 to-indigo-500 bg-clip-text text-transparent leading-tight">HYPERGRAM</div>
+            <div id="sidebarUserSubtitle" class="text-[11px] text-slate-500 dark:text-[#7f91a4] truncate"></div>
+          </div>
+        </div>
+
+        <!-- Кнопка Админ-панели (только для Hypergram) -->
+        <button id="btnHeaderAdmin" onclick="openAdminModal()" class="hidden px-2.5 py-1.5 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/30 text-sky-500 dark:text-sky-400 text-xs font-semibold flex items-center gap-1 transition">
+          <span>🛡️</span><span class="hidden sm:inline">Админ</span>
+        </button>
+
+        <!-- Тема -->
+        <button onclick="toggleTheme()" title="Сменить тему" class="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-[#202b36] text-slate-500 dark:text-slate-300 transition">
+          <svg id="iconSun" class="w-5 h-5 hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+          </svg>
+          <svg id="iconMoon" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Поиск чатов и пользователей по @username -->
+      <div class="px-3 pb-2">
+        <div class="relative">
+          <svg class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+          </svg>
+          <input id="searchInput" type="text" oninput="renderChatList()" placeholder="Поиск чатов или @username..." class="w-full pl-10 pr-4 py-2 text-sm rounded-xl bg-slate-100 dark:bg-[#242f3d] text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/60 transition" />
+        </div>
+      </div>
+
+      <!-- Список чатов + результаты поиска пользователей -->
+      <div id="chatList" class="flex-1 overflow-y-auto custom-scroll p-2 space-y-1"></div>
+
+      <!-- Нижняя панель профиля -->
+      <div class="p-3 border-t border-slate-200 dark:border-[#232e3c] flex items-center justify-between gap-2 bg-slate-50/70 dark:bg-[#141d26]">
+        <div onclick="openDrawer()" class="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer p-1 rounded-xl hover:bg-slate-200/60 dark:hover:bg-[#202b36] transition">
+          <div id="bottomUserAvatar" class="w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold text-white flex-shrink-0"></div>
+          <div class="min-w-0 flex-1">
+            <div id="bottomUserName" class="text-xs font-semibold truncate flex items-center gap-1"></div>
+            <div id="bottomUserHandle" class="text-[11px] text-slate-500 dark:text-[#7f91a4] truncate"></div>
+          </div>
+        </div>
+        <button onclick="logout()" title="Выйти из аккаунта" class="p-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+          </svg>
+        </button>
+      </div>
+    </aside>
+
+    <!-- ЦЕНТРАЛЬНАЯ ОБЛАСТЬ ЧАТА -->
+    <main id="chatArea" class="hidden md:flex flex-1 flex-col h-full relative min-w-0">
+      <!-- Заглушка -->
+      <div id="emptyChatState" class="flex-1 flex flex-col items-center justify-center p-6 text-center chat-wallpaper-dark">
+        <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center shadow-xl mb-3 text-white text-2xl">⚡</div>
+        <h2 class="text-lg font-bold">Выберите чат</h2>
+        <p class="text-xs text-slate-500 dark:text-[#7f91a4] mt-1 max-w-xs">Откройте общий чат, новости или найдите любого пользователя по @нику в поиске слева.</p>
+      </div>
+
+      <!-- Активный чат -->
+      <div id="activeChatContainer" class="hidden flex-1 flex flex-col h-full min-h-0">
+        <!-- Шапка чата -->
+        <header class="h-16 px-3 sm:px-4 flex items-center justify-between gap-2 bg-white/95 dark:bg-[#17212b]/95 backdrop-blur border-b border-slate-200 dark:border-[#232e3c] flex-shrink-0">
+          <div class="flex items-center gap-2.5 min-w-0 flex-1">
+            <button id="btnMobileBack" onclick="mobileBackToList()" class="md:hidden p-2 -ml-1 rounded-xl hover:bg-slate-100 dark:hover:bg-[#202b36]">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
+              </svg>
+            </button>
+            <div onclick="openChatInfoPanel()" class="flex items-center gap-3 min-w-0 flex-1 cursor-pointer group">
+              <div id="chatHeaderAvatar" class="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-white text-sm flex-shrink-0"></div>
+              <div class="min-w-0 flex-1">
+                <div id="chatHeaderTitle" class="font-semibold text-sm sm:text-base truncate flex items-center gap-1.5 group-hover:text-sky-500 transition"></div>
+                <div id="chatHeaderStatus" class="text-xs text-slate-500 dark:text-[#7f91a4] truncate"></div>
+              </div>
+            </div>
+          </div>
+          <button onclick="openChatInfoPanel()" title="Информация" class="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-[#202b36] text-slate-500 dark:text-slate-300">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+          </button>
+        </header>
+
+        <!-- Лента сообщений -->
+        <div id="messagesContainer" class="flex-1 overflow-y-auto custom-scroll px-3 sm:px-6 py-4 space-y-2 chat-wallpaper-dark select-text"></div>
+
+        <!-- Баннер ответа (Reply) -->
+        <div id="replyBanner" class="hidden px-4 py-2 bg-white dark:bg-[#17212b] border-t border-slate-200 dark:border-[#232e3c] flex items-center justify-between gap-3 flex-shrink-0">
+          <div class="border-l-2 border-sky-500 pl-2.5 min-w-0">
+            <div id="replyBannerTitle" class="text-xs font-semibold text-sky-500"></div>
+            <div id="replyBannerText" class="text-xs text-slate-500 dark:text-slate-300 truncate"></div>
+          </div>
+          <button onclick="cancelReply()" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-[#202b36] text-slate-400">✕</button>
+        </div>
+
+        <!-- Поле ввода -->
+        <div class="p-2.5 sm:p-3 bg-white dark:bg-[#17212b] border-t border-slate-200 dark:border-[#232e3c] relative flex-shrink-0">
+          <!-- Баннер ограничения (Бан / Канал) -->
+          <div id="composerRestriction" class="hidden py-2.5 px-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-500 text-xs sm:text-sm font-medium text-center"></div>
+
+          <div id="composerControls" class="flex items-end gap-2">
+            <div class="flex-1 relative">
+              <textarea id="messageInput" rows="1" placeholder="Написать сообщение..." class="w-full max-h-32 resize-none rounded-2xl bg-slate-100 dark:bg-[#242f3d] text-slate-900 dark:text-slate-100 placeholder-slate-400 px-4 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/50 transition custom-scroll"></textarea>
+              <button id="btnEmoji" onclick="toggleEmojiPopover(event)" class="absolute right-2 bottom-1.5 p-1.5 rounded-lg hover:bg-slate-200/70 dark:hover:bg-[#2f3d4f] text-slate-500 dark:text-[#7f91a4]">😊</button>
+              <div id="emojiPopover" class="hidden absolute bottom-12 right-0 w-64 rounded-2xl bg-white dark:bg-[#1e2c3a] border border-slate-200 dark:border-[#2b3947] shadow-2xl p-2.5 z-30">
+                <div id="emojiGrid" class="grid grid-cols-7 gap-1 text-lg"></div>
+              </div>
+            </div>
+            <button onclick="sendMessage()" class="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white shadow-md flex items-center justify-center transition active:scale-95 flex-shrink-0">
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- ПРАВАЯ ПАНЕЛЬ ПРОФИЛЯ / ИНФО -->
+    <aside id="rightInfoPanel" class="hidden fixed inset-y-0 right-0 lg:static w-full sm:w-[330px] flex-shrink-0 h-full bg-white dark:bg-[#17212b] border-l border-slate-200 dark:border-[#232e3c] z-30 flex-col shadow-2xl lg:shadow-none">
+      <div class="h-16 px-4 flex items-center justify-between border-b border-slate-200 dark:border-[#232e3c]">
+        <span class="font-semibold text-sm">Профиль</span>
+        <button onclick="closeInfoPanel()" class="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-[#202b36]">✕</button>
+      </div>
+      <div id="rightInfoContent" class="flex-1 overflow-y-auto custom-scroll p-4 space-y-4"></div>
+    </aside>
+
+    <!-- БОКОВОЕ МЕНЮ (DRAWER) -->
+    <div id="drawerOverlay" class="hidden fixed inset-0 bg-black/50 backdrop-blur-[2px] z-40" onclick="closeDrawer()"></div>
+    <div id="mainDrawer" class="fixed inset-y-0 left-0 w-72 max-w-[85vw] bg-white dark:bg-[#17212b] border-r border-slate-200 dark:border-[#232e3c] z-50 transform -translate-x-full transition-transform duration-200 flex flex-col shadow-2xl">
+      <div class="p-5 bg-gradient-to-br from-sky-600 via-blue-600 to-indigo-700 text-white">
+        <div id="drawerAvatar" class="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center text-xl font-bold mb-3"></div>
+        <div id="drawerName" class="font-bold text-base flex items-center gap-1.5"></div>
+        <div id="drawerUsername" class="text-xs text-sky-100/90 mt-0.5"></div>
+        <div id="drawerTitle" class="text-[11px] text-sky-200/80 mt-1"></div>
+      </div>
+      <nav class="flex-1 p-2.5 space-y-1">
+        <button id="drawerBtnAdmin" onclick="closeDrawer(); openAdminModal();" class="hidden w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 text-sky-500 dark:text-sky-400 font-semibold text-sm transition">
+          <span>🛡️</span><span>Админ-панель Hypergram</span>
+        </button>
+        <button onclick="toggleTheme()" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-[#202b36] text-sm font-medium transition">
+          <span>🎨</span><span>Сменить тему</span>
+        </button>
+        <div class="my-2 border-t border-slate-200 dark:border-[#232e3c]"></div>
+        <button onclick="closeDrawer(); logout();" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-red-500/10 text-red-500 text-sm font-semibold transition">
+          <span>🚪</span><span>Выйти из аккаунта</span>
+        </button>
+      </nav>
+    </div>
+
+    <!-- КОНТЕКСТНОЕ МЕНЮ СООБЩЕНИЯ -->
+    <div id="msgContextMenu" class="hidden fixed z-50 w-52 rounded-2xl bg-white dark:bg-[#1e2c3a] border border-slate-200 dark:border-[#2b3947] shadow-2xl p-1.5">
+      <div class="flex items-center justify-around py-1.5 mb-1 border-b border-slate-200 dark:border-[#2b3947]">
+        <button onclick="ctxReact('❤️')" class="text-lg hover:scale-125 transition p-1">❤️</button>
+        <button onclick="ctxReact('🔥')" class="text-lg hover:scale-125 transition p-1">🔥</button>
+        <button onclick="ctxReact('👍')" class="text-lg hover:scale-125 transition p-1">👍</button>
+        <button onclick="ctxReact('😂')" class="text-lg hover:scale-125 transition p-1">😂</button>
+        <button onclick="ctxReact('⚡')" class="text-lg hover:scale-125 transition p-1">⚡</button>
+      </div>
+      <button onclick="ctxReply()" class="w-full flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-[#283848] text-xs font-medium text-left">↩️ Ответить</button>
+      <button id="ctxBtnDelete" onclick="ctxDelete()" class="w-full flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-red-500/10 text-red-500 text-xs font-medium text-left">🗑️ Удалить</button>
+    </div>
+
+    <!-- МОДАЛЬНОЕ ОКНО: АДМИН-ПАНЕЛЬ HYPERGRAM -->
+    <div id="adminModal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
+      <div class="w-full max-w-3xl max-h-[90vh] rounded-3xl bg-white dark:bg-[#17212b] border border-slate-200 dark:border-[#2b3947] shadow-2xl flex flex-col overflow-hidden">
+        <div class="px-5 py-4 bg-gradient-to-r from-sky-600/15 to-indigo-600/15 border-b border-slate-200 dark:border-[#232e3c] flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center text-white">🛡️</div>
+            <div>
+              <h3 class="font-bold text-base">Админ-панель Hypergram</h3>
+              <p class="text-xs text-slate-500 dark:text-[#7f91a4]">Верификация, баны, титулы и новости</p>
+            </div>
+          </div>
+          <button onclick="closeAdminModal()" class="p-2 rounded-xl hover:bg-slate-200/70 dark:hover:bg-[#202b36]">✕</button>
+        </div>
+
+        <div class="px-4 pt-3 pb-2 border-b border-slate-200 dark:border-[#232e3c] flex gap-2">
+          <button id="adminTabUsers" onclick="setAdminTab('users')" class="px-3.5 py-2 rounded-xl text-xs font-semibold bg-sky-500 text-white">✅ Пользователи и галочки</button>
+          <button id="adminTabBroadcast" onclick="setAdminTab('broadcast')" class="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-500 dark:text-[#7f91a4] hover:bg-slate-100 dark:hover:bg-[#202b36]">📢 Рассылка в Новости</button>
+        </div>
+
+        <div id="adminModalBody" class="flex-1 overflow-y-auto custom-scroll p-4 space-y-3"></div>
+      </div>
+    </div>
+
+    <!-- БАННЕР ЗАБАНЕННОГО АККАУНТА -->
+    <div id="bannedBanner" class="hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-40 px-4 py-2.5 rounded-2xl bg-red-600 text-white text-xs font-bold shadow-2xl flex items-center gap-2">
+      <span>🚫 Ваш аккаунт заблокирован администратором @Hypergram. Вы не можете отправлять сообщения.</span>
+    </div>
+  </div>
+
+  <!-- TOAST УВЕДОМЛЕНИЯ -->
+  <div id="toastContainer" class="fixed top-4 right-4 z-[60] flex flex-col gap-2 pointer-events-none max-w-xs w-full"></div>
+
+  <!-- =========================================================
+       ЛОГИКА FIREBASE FIRESTORE + РЕЗЕРВНЫЙ РЕЖИМ
+  ========================================================== -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, updateDoc, deleteDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    const AVATAR_GRADIENTS = [
+      'from-sky-500 to-indigo-600',
+      'from-emerald-500 to-teal-600',
+      'from-fuchsia-500 to-purple-600',
+      'from-amber-500 to-orange-600',
+      'from-rose-500 to-pink-600',
+      'from-cyan-500 to-blue-600'
+    ];
+
+    const EMOJIS = ['😀','😂','😍','🔥','⚡','❤️','👍','🎉','🚀','💎','👑','🛡️','😎','🤝','🤔','😢','🙏','💯','✨','✅','📢'];
+
+    // Состояние приложения
+    let db = null;
+    let auth = null;
+    let appId = typeof __app_id !== 'undefined' ? __app_id : 'hypergram-default';
+    let useCloud = false;
+
+    let usersMap = {};       // { userId: userObj }
+    let chatsMap = {};       // { chatId: chatObj }
+    let messagesList = [];   // array of all messages
+
+    let currentUserId = null;
+    let activeChatId = 'global_chat';
+    let authMode = 'login';
+    let theme = 'dark';
+    let replyToMsgId = null;
+    let ctxMsgId = null;
+    let infoTarget = null;   // { type: 'user'|'chat', id: string }
+    let adminTab = 'users';
+    let adminSearch = '';
+
+    // Резервное хранилище в памяти/localStorage, если Firebase не передан окружением
+    const FALLBACK_KEY = 'hypergram_fallback_db_v2';
+
+    function saveFallback() {
+      if (useCloud) return;
+      try {
+        localStorage.setItem(FALLBACK_KEY, JSON.stringify({ usersMap, chatsMap, messagesList }));
+      } catch (e) {}
+    }
+
+    function loadFallback() {
+      try {
+        const raw = localStorage.getItem(FALLBACK_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          usersMap = parsed.usersMap || {};
+          chatsMap = parsed.chatsMap || {};
+          messagesList = parsed.messagesList || [];
+        }
+      } catch (e) {}
+    }
+
+    // Универсальные операции записи (Firestore или Fallback)
+    async function dbSet(colName, docId, data) {
+      if (useCloud && db) {
+        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', colName, docId), data);
+      } else {
+        if (colName === 'hg_users') usersMap[docId] = data;
+        if (colName === 'hg_chats') chatsMap[docId] = data;
+        if (colName === 'hg_messages') {
+          const idx = messagesList.findIndex(m => m.id === docId);
+          if (idx > -1) messagesList[idx] = data;
+          else messagesList.push(data);
+        }
+        saveFallback();
+        renderIfLoggedIn();
+      }
+    }
+
+    async function dbUpdate(colName, docId, patch) {
+      if (useCloud && db) {
+        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', colName, docId), patch);
+      } else {
+        if (colName === 'hg_users' && usersMap[docId]) Object.assign(usersMap[docId], patch);
+        if (colName === 'hg_chats' && chatsMap[docId]) Object.assign(chatsMap[docId], patch);
+        if (colName === 'hg_messages') {
+          const m = messagesList.find(x => x.id === docId);
+          if (m) Object.assign(m, patch);
+        }
+        saveFallback();
+        renderIfLoggedIn();
+      }
+    }
+
+    async function dbDelete(colName, docId) {
+      if (useCloud && db) {
+        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', colName, docId));
+      } else {
+        if (colName === 'hg_messages') messagesList = messagesList.filter(m => m.id !== docId);
+        saveFallback();
+        renderIfLoggedIn();
+      }
+    }
+
+    // Инициализация базовых данных (Админ Hypergram + Общий чат + Канал Новостей)
+    async function ensureSeedData() {
+      if (!usersMap['hypergram']) {
+        await dbSet('hg_users', 'hypergram', {
+          id: 'hypergram',
+          username: '@Hypergram',
+          displayName: 'Hypergram',
+          password: 'hyper2026',
+          role: 'admin',
+          avatarColor: 'from-sky-500 via-blue-500 to-indigo-600',
+          initials: 'HG',
+          badges: { verified: true, premium: true, staff: true, scam: false },
+          customTitle: 'Главный администратор',
+          banned: false,
+          createdAt: Date.now()
+        });
+      }
+
+      if (!chatsMap['global_chat']) {
+        await dbSet('hg_chats', 'global_chat', {
+          id: 'global_chat',
+          type: 'group',
+          title: 'HYPERGRAM Общий чат',
+          description: 'Главный глобальный чат всех пользователей HYPERGRAM ⚡',
+          avatarColor: 'from-indigo-500 to-purple-600',
+          initials: '🌐',
+          badges: { verified: true, premium: false, staff: false, scam: false },
+          createdAt: Date.now()
+        });
+      }
+
+      if (!chatsMap['news_channel']) {
+        await dbSet('hg_chats', 'news_channel', {
+          id: 'news_channel',
+          type: 'channel',
+          title: 'Новости HYPERGRAM',
+          description: 'Официальный канал обновлений. Писать может только @Hypergram.',
+          avatarColor: 'from-sky-500 to-blue-600',
+          initials: '📢',
+          badges: { verified: true, premium: true, staff: true, scam: false },
+          createdAt: Date.now()
+        });
+      }
+
+      // Приветственное сообщение в канал новостей, если пусто
+      const hasNews = messagesList.some(m => m.chatId === 'news_channel');
+      if (!hasNews) {
+        const msgId = 'welcome_news_1';
+        await dbSet('hg_messages', msgId, {
+          id: msgId,
+          chatId: 'news_channel',
+          senderId: 'hypergram',
+          text: '⚡ Добро пожаловать в HYPERGRAM! Общайтесь в реальном времени, находите друзей по @username и получайте верификацию от администрации.',
+          replyToId: null,
+          reactions: { '🔥': ['hypergram'] },
+          timestamp: Date.now(),
+          readBy: ['hypergram']
+        });
+      }
+    }
+
+    // Подключение к Firebase Firestore
+    async function initBackend() {
+      const statusEl = document.getElementById('syncStatusBadge');
+      try {
+        if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+          const firebaseConfig = JSON.parse(__firebase_config);
+          const app = initializeApp(firebaseConfig);
+          auth = getAuth(app);
+          db = getFirestore(app);
+
+          if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+            await signInWithCustomToken(auth, __initial_auth_token);
+          } else {
+            await signInAnonymously(auth);
+          }
+
+          if (!auth.currentUser) throw new Error('Auth failed');
+          useCloud = true;
+          statusEl.textContent = '🟢 Подключено к облаку HYPERGRAM (Реальное время)';
+
+          // Подписка на коллекции Firestore
+          onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'hg_users'), (snap) => {
+            const next = {};
+            snap.forEach(d => { next[d.id] = d.data(); });
+            usersMap = next;
+            ensureSeedData();
+            renderIfLoggedIn();
+          }, (err) => console.error('Users sync error:', err));
+
+          onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'hg_chats'), (snap) => {
+            const next = {};
+            snap.forEach(d => { next[d.id] = d.data(); });
+            chatsMap = next;
+            renderIfLoggedIn();
+          }, (err) => console.error('Chats sync error:', err));
+
+          onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'hg_messages'), (snap) => {
+            const next = [];
+            snap.forEach(d => { next.push(d.data()); });
+            next.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+            messagesList = next;
+            renderIfLoggedIn();
+          }, (err) => console.error('Messages sync error:', err));
+
+          await ensureSeedData();
+          return;
+        }
+      } catch (err) {
+        console.warn('Firebase недоступен, включен локальный режим:', err);
+      }
+
+      // Резервный режим
+      useCloud = false;
+      loadFallback();
+      await ensureSeedData();
+      statusEl.textContent = '🟡 Локальный режим (автосохранение в браузере)';
+    }
+
+    // =========================================================
+    // УТИЛИТЫ И ЗНАЧКИ
+    // =========================================================
+    function escapeHtml(str) {
+      return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function formatTime(ts) {
+      if (!ts) return '';
+      return new Date(ts).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function normalizeId(username) {
+      return username.trim().replace(/^@+/, '').toLowerCase().replace(/[^a-z0-9_а-яё]/gi, '');
+    }
+
+    function getCurrentUser() {
+      return usersMap[currentUserId] || null;
+    }
+
+    function isAdmin() {
+      return getCurrentUser()?.role === 'admin';
+    }
+
+    function renderBadges(badges = {}, compact = false) {
+      let html = '';
+      const sz = compact ? 'w-3.5 h-3.5' : 'w-4 h-4';
+      if (badges.verified) {
+        html += `<span title="Верифицирован" class="inline-flex items-center flex-shrink-0"><svg class="${sz} text-sky-400" viewBox="0 0 24 24" fill="currentColor"><path d="M22.5 12.5c0-1.58-.875-2.95-2.148-3.6.154-.435.238-.905.238-1.4 0-2.21-1.71-3.998-3.818-3.998-.47 0-.92.084-1.336.25C14.818 2.415 13.51 1.5 12 1.5s-2.816.917-3.437 2.25c-.415-.165-.866-.25-1.336-.25-2.11 0-3.818 1.79-3.818 4 0 .494.083.964.237 1.4-1.272.65-2.147 2.018-2.147 3.6 0 1.495.782 2.798 1.942 3.486-.02.17-.032.34-.032.514 0 2.21 1.708 4 3.818 4 .47 0 .92-.086 1.335-.25.62 1.334 1.926 2.25 3.437 2.25 1.512 0 2.818-.916 3.437-2.25.415.163.865.248 1.336.248 2.11 0 3.818-1.79 3.818-4 0-.174-.012-.344-.033-.513 1.158-.687 1.943-1.99 1.943-3.484zm-6.616-3.334l-4.334 6.5c-.145.217-.382.334-.625.334-.143 0-.288-.04-.416-.126l-.115-.094-2.415-2.415c-.293-.293-.293-.768 0-1.06s.768-.294 1.06 0l1.77 1.767 3.825-5.74c.23-.345.696-.436 1.04-.207.346.23.44.696.21 1.04z"/></svg></span>`;
+      }
+      if (badges.premium) {
+        html += `<span title="VIP / Premium" class="inline-flex items-center flex-shrink-0"><svg class="${sz} text-amber-400" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.9 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l7.1-1.01L12 2z"/></svg></span>`;
+      }
+      if (badges.staff) {
+        html += `<span title="STAFF (Администрация)" class="inline-flex items-center flex-shrink-0"><svg class="${sz} text-indigo-400" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-1 6h2v4h3l-4 5v-4H9l2-5z"/></svg></span>`;
+      }
+      if (badges.scam) {
+        html += `<span title="SCAM / Мошенник" class="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-red-500/20 text-red-500 border border-red-500/40 uppercase flex-shrink-0">SCAM</span>`;
+      }
+      return html;
+    }
+
+    function showToast(text, type = 'info') {
+      const c = document.getElementById('toastContainer');
+      const el = document.createElement('div');
+      const styles = {
+        info: 'bg-slate-900/95 border-sky-500/40 text-white',
+        success: 'bg-emerald-950/95 border-emerald-500/50 text-emerald-100',
+        error: 'bg-red-950/95 border-red-500/50 text-red-100'
+      };
+      el.className = `pointer-events-auto px-4 py-3 rounded-2xl border shadow-2xl text-xs font-medium msg-animate ${styles[type] || styles.info}`;
+      el.textContent = text;
+      c.appendChild(el);
+      setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity 0.25s'; setTimeout(() => el.remove(), 250); }, 3000);
+    }
+
+    // =========================================================
+    // АВТОРИЗАЦИЯ И РЕГИСТРАЦИЯ
+    // =========================================================
+    window.setAuthMode = function(mode) {
+      authMode = mode;
+      document.getElementById('authError').classList.add('hidden');
+      const isReg = mode === 'register';
+      document.getElementById('registerNameField').classList.toggle('hidden', !isReg);
+      document.getElementById('authSubmitBtn').textContent = isReg ? 'Создать аккаунт' : 'Войти в HYPERGRAM';
+      document.getElementById('tabLogin').className = !isReg
+        ? 'py-2 rounded-xl text-sm font-semibold bg-sky-500 text-white shadow transition'
+        : 'py-2 rounded-xl text-sm font-semibold text-slate-500 dark:text-[#7f91a4] transition';
+      document.getElementById('tabRegister').className = isReg
+        ? 'py-2 rounded-xl text-sm font-semibold bg-sky-500 text-white shadow transition'
+        : 'py-2 rounded-xl text-sm font-semibold text-slate-500 dark:text-[#7f91a4] transition';
+    };
+
+    window.handleAuthSubmit = async function(e) {
+      e.preventDefault();
+      const errEl = document.getElementById('authError');
+      errEl.classList.add('hidden');
+
+      const rawUser = document.getElementById('authUsername').value.trim();
+      const password = document.getElementById('authPassword').value.trim();
+      const displayName = document.getElementById('authDisplayName').value.trim();
+      const uid = normalizeId(rawUser);
+
+      if (!uid || uid.length < 2) {
+        errEl.textContent = 'Логин должен содержать минимум 2 символа.';
+        errEl.classList.remove('hidden');
+        return;
+      }
+
+      if (authMode === 'login') {
+        const user = usersMap[uid];
+        if (!user || user.password !== password) {
+          errEl.textContent = 'Неверный логин или пароль.';
+          errEl.classList.remove('hidden');
+          return;
+        }
+        loginSuccess(uid);
+      } else {
+        if (!displayName) {
+          errEl.textContent = 'Введите отображаемое имя.';
+          errEl.classList.remove('hidden');
+          return;
+        }
+        if (password.length < 4) {
+          errEl.textContent = 'Пароль должен быть не короче 4 символов.';
+          errEl.classList.remove('hidden');
+          return;
+        }
+        if (usersMap[uid]) {
+          errEl.textContent = 'Этот логин уже занят.';
+          errEl.classList.remove('hidden');
+          return;
+        }
+
+        const initials = displayName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || 'HG';
+        const color = AVATAR_GRADIENTS[Math.floor(Math.random() * AVATAR_GRADIENTS.length)];
+
+        await dbSet('hg_users', uid, {
+          id: uid,
+          username: '@' + uid,
+          displayName: displayName,
+          password: password,
+          role: 'user',
+          avatarColor: color,
+          initials: initials,
+          badges: { verified: false, premium: false, staff: false, scam: false },
+          customTitle: '',
+          banned: false,
+          createdAt: Date.now()
+        });
+        loginSuccess(uid);
+      }
+    };
+
+    function loginSuccess(uid) {
+      currentUserId = uid;
+      document.getElementById('authScreen').classList.add('hidden');
+      document.getElementById('app').classList.remove('hidden');
+      document.getElementById('authForm').reset();
+      activeChatId = 'global_chat';
+      renderIfLoggedIn();
+      showToast(`Добро пожаловать, ${usersMap[uid]?.displayName || uid}! ⚡`, 'success');
+    }
+
+    window.logout = function() {
+      currentUserId = null;
+      closeInfoPanel();
+      closeAdminModal();
+      document.getElementById('app').classList.add('hidden');
+      document.getElementById('authScreen').classList.remove('hidden');
+      showToast('Вы вышли из аккаунта');
+    };
+
+    // =========================================================
+    // РЕНДЕРИНГ ИНТЕРФЕЙСА
+    // =========================================================
+    function renderIfLoggedIn() {
+      if (!currentUserId || !usersMap[currentUserId]) return;
+      renderUserHeader();
+      renderChatList();
+      renderActiveChat();
+      if (infoTarget) renderInfoPanel();
+      if (!document.getElementById('adminModal').classList.contains('hidden')) renderAdminModal();
+
+      const cur = getCurrentUser();
+      document.getElementById('bannedBanner').classList.toggle('hidden', !cur?.banned);
+    }
+
+    function renderUserHeader() {
+      const u = getCurrentUser();
+      const admin = isAdmin();
+      document.getElementById('sidebarUserSubtitle').textContent = `${u.username}${admin ? ' • Админ' : ''}`;
+      document.getElementById('btnHeaderAdmin').classList.toggle('hidden', !admin);
+      document.getElementById('drawerBtnAdmin').classList.toggle('hidden', !admin);
+
+      const bAv = document.getElementById('bottomUserAvatar');
+      bAv.className = `w-9 h-9 rounded-xl bg-gradient-to-tr ${u.avatarColor} flex items-center justify-center text-xs font-bold text-white flex-shrink-0`;
+      bAv.textContent = u.initials;
+      document.getElementById('bottomUserName').innerHTML = `<span class="truncate">${escapeHtml(u.displayName)}</span>${renderBadges(u.badges, true)}`;
+      document.getElementById('bottomUserHandle').textContent = u.username;
+
+      document.getElementById('drawerAvatar').textContent = u.initials;
+      document.getElementById('drawerName').innerHTML = `<span>${escapeHtml(u.displayName)}</span>${renderBadges(u.badges, true)}`;
+      document.getElementById('drawerUsername').textContent = u.username;
+      document.getElementById('drawerTitle').textContent = u.customTitle || (admin ? 'Главный администратор' : 'Пользователь HYPERGRAM');
+    }
+
+    function getChatMeta(chat) {
+      if (chat.type === 'dm') {
+        const peerId = (chat.participants || []).find(id => id !== currentUserId) || currentUserId;
+        const peer = usersMap[peerId] || { displayName: 'Пользователь', username: '@user', initials: '?', avatarColor: 'from-slate-500 to-slate-600', badges: {} };
+        return {
+          title: peer.displayName,
+          subtitle: peer.banned ? 'Заблокирован' : peer.username,
+          avatarColor: peer.avatarColor,
+          initials: peer.initials,
+          badges: peer.badges || {},
+          peer: peer
+        };
+      }
+      return {
+        title: chat.title,
+        subtitle: chat.type === 'channel' ? 'Официальный канал' : `Участников: ${Object.keys(usersMap).length}`,
+        avatarColor: chat.avatarColor,
+        initials: chat.initials,
+        badges: chat.badges || {},
+        peer: null
+      };
+    }
+
+    window.renderChatList = function() {
+      const container = document.getElementById('chatList');
+      const q = (document.getElementById('searchInput').value || '').trim().toLowerCase();
+
+      // Доступные чаты текущего пользователя
+      const myChats = Object.values(chatsMap).filter(c => {
+        if (c.type === 'dm') return (c.participants || []).includes(currentUserId);
+        return true;
+      });
+
+      const filteredChats = myChats.filter(c => {
+        if (!q) return true;
+        const meta = getChatMeta(c);
+        return meta.title.toLowerCase().includes(q) || (meta.subtitle || '').toLowerCase().includes(q);
+      });
+
+      // Сортировка по последнему сообщению
+      filteredChats.sort((a, b) => {
+        const lastA = messagesList.filter(m => m.chatId === a.id).slice(-1)[0]?.timestamp || a.createdAt || 0;
+        const lastB = messagesList.filter(m => m.chatId === b.id).slice(-1)[0]?.timestamp || b.createdAt || 0;
+        return lastB - lastA;
+      });
+
+      let html = filteredChats.map(c => {
+        const meta = getChatMeta(c);
+        const active = c.id === activeChatId;
+        const lastMsg = messagesList.filter(m => m.chatId === c.id).slice(-1)[0];
+        const preview = lastMsg ? escapeHtml(lastMsg.text) : 'Нет сообщений';
+        const time = lastMsg ? formatTime(lastMsg.timestamp) : '';
+
+        return `
+          <div onclick="selectChat('${c.id}')" class="flex items-center gap-3 p-2.5 rounded-2xl cursor-pointer transition ${active ? 'bg-sky-500/15 dark:bg-[#2b5278]/80' : 'hover:bg-slate-100 dark:hover:bg-[#202b36]'}">
+            <div class="w-11 h-11 rounded-2xl bg-gradient-to-tr ${meta.avatarColor} flex items-center justify-center font-bold text-white text-sm flex-shrink-0">${meta.initials}</div>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center justify-between gap-1">
+                <div class="font-semibold text-sm truncate flex items-center gap-1">${escapeHtml(meta.title)}${renderBadges(meta.badges, true)}</div>
+                <span class="text-[10px] text-slate-400 flex-shrink-0">${time}</span>
+              </div>
+              <div class="text-xs text-slate-500 dark:text-[#7f91a4] truncate mt-0.5">${preview}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // Глобальный поиск пользователей по @username для начала ЛС
+      if (q) {
+        const foundUsers = Object.values(usersMap).filter(u =>
+          u.id !== currentUserId &&
+          (u.username.toLowerCase().includes(q) || u.displayName.toLowerCase().includes(q))
+        );
+        if (foundUsers.length) {
+          html += `<div class="px-2 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-sky-500">Пользователи (написать в ЛС)</div>`;
+          html += foundUsers.map(u => `
+            <div onclick="startDm('${u.id}')" class="flex items-center gap-3 p-2.5 rounded-2xl cursor-pointer hover:bg-slate-100 dark:hover:bg-[#202b36] transition">
+              <div class="w-10 h-10 rounded-xl bg-gradient-to-tr ${u.avatarColor} flex items-center justify-center font-bold text-white text-xs flex-shrink-0">${u.initials}</div>
+              <div class="min-w-0 flex-1">
+                <div class="font-semibold text-sm truncate flex items-center gap-1">${escapeHtml(u.displayName)}${renderBadges(u.badges, true)}</div>
+                <div class="text-xs text-sky-500">${escapeHtml(u.username)}</div>
+              </div>
+            </div>
+          `).join('');
+        }
+      }
+
+      container.innerHTML = html || `<div class="text-center py-8 text-xs text-slate-400">Ничего не найдено</div>`;
+    };
+
+    window.selectChat = function(chatId) {
+      activeChatId = chatId;
+      cancelReply();
+      if (window.innerWidth < 768) {
+        document.getElementById('leftSidebar').classList.add('hidden');
+        document.getElementById('chatArea').classList.remove('hidden');
+        document.getElementById('chatArea').classList.add('flex');
+      }
+      renderChatList();
+      renderActiveChat();
+    };
+
+    window.mobileBackToList = function() {
+      document.getElementById('leftSidebar').classList.remove('hidden');
+      document.getElementById('chatArea').classList.add('hidden');
+      document.getElementById('chatArea').classList.remove('flex');
+    };
+
+    window.startDm = async function(peerId) {
+      const pair = [currentUserId, peerId].sort();
+      const dmId = `dm_${pair[0]}_${pair[1]}`;
+      if (!chatsMap[dmId]) {
+        await dbSet('hg_chats', dmId, {
+          id: dmId,
+          type: 'dm',
+          participants: pair,
+          createdAt: Date.now()
+        });
+      }
+      document.getElementById('searchInput').value = '';
+      selectChat(dmId);
+    };
+
+    function renderActiveChat() {
+      const chat = chatsMap[activeChatId];
+      const emptyEl = document.getElementById('emptyChatState');
+      const activeEl = document.getElementById('activeChatContainer');
+
+      if (!chat) {
+        emptyEl.classList.remove('hidden');
+        activeEl.classList.add('hidden');
+        return;
+      }
+
+      emptyEl.classList.add('hidden');
+      activeEl.classList.remove('hidden');
+      activeEl.classList.add('flex');
+
+      const meta = getChatMeta(chat);
+      const av = document.getElementById('chatHeaderAvatar');
+      av.className = `w-10 h-10 rounded-xl bg-gradient-to-tr ${meta.avatarColor} flex items-center justify-center font-bold text-white text-sm flex-shrink-0`;
+      av.textContent = meta.initials;
+      document.getElementById('chatHeaderTitle').innerHTML = `<span class="truncate">${escapeHtml(meta.title)}</span>${renderBadges(meta.badges, false)}`;
+      document.getElementById('chatHeaderStatus').textContent = meta.subtitle;
+
+      // Проверка ограничений на отправку
+      const cur = getCurrentUser();
+      const restrictEl = document.getElementById('composerRestriction');
+      const controlsEl = document.getElementById('composerControls');
+      let restrictMsg = '';
+
+      if (cur.banned) {
+        restrictMsg = '🚫 Ваш аккаунт заблокирован администратором @Hypergram.';
+      } else if (chat.type === 'channel' && !isAdmin()) {
+        restrictMsg = '📢 Писать в канал «Новости HYPERGRAM» может только администратор Hypergram.';
+      }
+
+      if (restrictMsg) {
+        restrictEl.textContent = restrictMsg;
+        restrictEl.classList.remove('hidden');
+        controlsEl.classList.add('hidden');
+      } else {
+        restrictEl.classList.add('hidden');
+        controlsEl.classList.remove('hidden');
+      }
+
+      // Сообщения
+      const msgs = messagesList.filter(m => m.chatId === chat.id);
+      const container = document.getElementById('messagesContainer');
+
+      if (!msgs.length) {
+        container.innerHTML = `<div class="h-full flex items-center justify-center"><div class="px-4 py-2 rounded-2xl bg-white/80 dark:bg-[#17212b]/80 text-xs">Сообщений пока нет. Напишите первым! ⚡</div></div>`;
+        return;
+      }
+
+      container.innerHTML = msgs.map(msg => {
+        const isOut = msg.senderId === currentUserId && chat.type !== 'channel';
+        const sender = usersMap[msg.senderId] || { displayName: 'Пользователь', initials: '?', avatarColor: 'from-slate-500 to-slate-600', badges: {} };
+
+        let replyHtml = '';
+        if (msg.replyToId) {
+          const orig = msgs.find(m => m.id === msg.replyToId);
+          if (orig) {
+            const origUser = usersMap[orig.senderId]?.displayName || 'Сообщение';
+            replyHtml = `
+              <div onclick="scrollToMsg('${orig.id}')" class="mb-1.5 pl-2 py-1 pr-2 rounded-lg bg-black/10 dark:bg-white/10 border-l-2 border-sky-400 cursor-pointer">
+                <div class="text-[11px] font-semibold text-sky-400">${escapeHtml(origUser)}</div>
+                <div class="text-[11px] opacity-80 truncate max-w-[200px]">${escapeHtml(orig.text)}</div>
+              </div>
+            `;
+          }
+        }
+
+        const reactionsHtml = Object.entries(msg.reactions || {}).filter(([, arr]) => arr.length > 0).map(([emoji, arr]) => {
+          const mine = arr.includes(currentUserId);
+          return `<button onclick="toggleReaction('${msg.id}','${emoji}')" class="px-2 py-0.5 rounded-full text-xs flex items-center gap-1 ${mine ? 'bg-sky-500 text-white' : 'bg-black/10 dark:bg-white/10'}"><span>${emoji}</span><span class="text-[10px] font-bold">${arr.length}</span></button>`;
+        }).join('');
+
+        const senderHeader = (!isOut && (chat.type === 'group' || chat.type === 'channel')) ? `
+          <div onclick="openUserProfile('${sender.id}')" class="flex items-center gap-1 mb-1 cursor-pointer hover:underline">
+            <span class="text-xs font-bold text-sky-500 dark:text-sky-400">${escapeHtml(sender.displayName)}</span>
+            ${renderBadges(sender.badges, true)}
+            ${sender.customTitle ? `<span class="text-[10px] px-1.5 rounded bg-sky-500/15 text-sky-400 font-medium">${escapeHtml(sender.customTitle)}</span>` : ''}
+          </div>
+        ` : '';
+
+        return `
+          <div id="msg_${msg.id}" class="flex items-end gap-2 ${isOut ? 'justify-end' : 'justify-start'} group msg-animate" oncontextmenu="openCtxMenu(event, '${msg.id}')">
+            ${(!isOut && chat.type === 'group') ? `<div onclick="openUserProfile('${sender.id}')" class="w-8 h-8 rounded-xl bg-gradient-to-tr ${sender.avatarColor} flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0 cursor-pointer">${sender.initials}</div>` : ''}
+            <div class="relative max-w-[85%] sm:max-w-[70%] rounded-2xl px-3.5 py-2 shadow-sm ${isOut
+              ? 'bg-gradient-to-br from-sky-600 to-blue-700 dark:from-[#2b5278] dark:to-[#244769] text-white rounded-br-md'
+              : 'bg-white dark:bg-[#182533] text-slate-900 dark:text-slate-100 rounded-bl-md border border-slate-200/70 dark:border-[#232e3c]'
+            }">
+              <button onclick="openCtxMenu(event, '${msg.id}')" class="opacity-0 group-hover:opacity-100 absolute -top-2 ${isOut ? '-left-7' : '-right-7'} w-6 h-6 rounded-full bg-white dark:bg-[#242f3d] border border-slate-200 dark:border-[#334357] text-xs shadow flex items-center justify-center">⋮</button>
+              ${senderHeader}
+              ${replyHtml}
+              <div class="text-sm leading-relaxed whitespace-pre-wrap break-words">${escapeHtml(msg.text)}</div>
+              ${reactionsHtml ? `<div class="flex flex-wrap gap-1 mt-1.5">${reactionsHtml}</div>` : ''}
+              <div class="flex items-center justify-end gap-1 mt-1 text-[10px] ${isOut ? 'text-sky-100/75' : 'text-slate-400'}">
+                <span>${formatTime(msg.timestamp)}</span>
+                ${isOut ? '<span>✓✓</span>' : ''}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      container.scrollTop = container.scrollHeight;
+    }
+
+    // =========================================================
+    // ОТПРАВКА, РЕАКЦИИ, ОТВЕТЫ, УДАЛЕНИЕ
+    // =========================================================
+    window.sendMessage = async function() {
+      const input = document.getElementById('messageInput');
+      const text = input.value.trim();
+      if (!text || !activeChatId) return;
+
+      const cur = getCurrentUser();
+      const chat = chatsMap[activeChatId];
+      if (cur.banned || (chat.type === 'channel' && !isAdmin())) return;
+
+      const id = 'm_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+      input.value = '';
+      input.style.height = 'auto';
+      const replyId = replyToMsgId;
+      cancelReply();
+
+      await dbSet('hg_messages', id, {
+        id,
+        chatId: activeChatId,
+        senderId: currentUserId,
+        text,
+        replyToId: replyId,
+        reactions: {},
+        timestamp: Date.now(),
+        readBy: [currentUserId]
+      });
+    };
+
+    window.scrollToMsg = function(id) {
+      const el = document.getElementById('msg_' + id);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.remove('msg-highlight');
+        void el.offsetWidth;
+        el.classList.add('msg-highlight');
+      }
+    };
+
+    window.openCtxMenu = function(e, msgId) {
+      e.preventDefault();
+      e.stopPropagation();
+      const msg = messagesList.find(m => m.id === msgId);
+      if (!msg) return;
+      ctxMsgId = msgId;
+      const canDel = msg.senderId === currentUserId || isAdmin();
+      document.getElementById('ctxBtnDelete').classList.toggle('hidden', !canDel);
+      const menu = document.getElementById('msgContextMenu');
+      menu.classList.remove('hidden');
+      menu.style.left = Math.max(10, Math.min(e.clientX, window.innerWidth - 220)) + 'px';
+      menu.style.top = Math.max(10, Math.min(e.clientY, window.innerHeight - 180)) + 'px';
+    };
+
+    window.ctxReact = function(emoji) {
+      if (ctxMsgId) toggleReaction(ctxMsgId, emoji);
+      document.getElementById('msgContextMenu').classList.add('hidden');
+    };
+
+    window.toggleReaction = async function(msgId, emoji) {
+      const msg = messagesList.find(m => m.id === msgId);
+      if (!msg) return;
+      const reactions = JSON.parse(JSON.stringify(msg.reactions || {}));
+      if (!reactions[emoji]) reactions[emoji] = [];
+      const idx = reactions[emoji].indexOf(currentUserId);
+      if (idx > -1) reactions[emoji].splice(idx, 1);
+      else reactions[emoji].push(currentUserId);
+      await dbUpdate('hg_messages', msgId, { reactions });
+    };
+
+    window.ctxReply = function() {
+      const msg = messagesList.find(m => m.id === ctxMsgId);
+      document.getElementById('msgContextMenu').classList.add('hidden');
+      if (!msg) return;
+      replyToMsgId = msg.id;
+      document.getElementById('replyBannerTitle').textContent = `Ответ для ${usersMap[msg.senderId]?.displayName || 'пользователя'}`;
+      document.getElementById('replyBannerText').textContent = msg.text;
+      document.getElementById('replyBanner').classList.remove('hidden');
+      document.getElementById('messageInput').focus();
+    };
+
+    window.cancelReply = function() {
+      replyToMsgId = null;
+      document.getElementById('replyBanner').classList.add('hidden');
+    };
+
+    window.ctxDelete = async function() {
+      const id = ctxMsgId;
+      document.getElementById('msgContextMenu').classList.add('hidden');
+      if (id) {
+        await dbDelete('hg_messages', id);
+        showToast('Сообщение удалено');
+      }
+    };
+
+    // =========================================================
+    // ПРАВАЯ ПАНЕЛЬ ПРОФИЛЯ + БЫСТРАЯ ВЕРИФИКАЦИЯ
+    // =========================================================
+    window.openChatInfoPanel = function() {
+      const chat = chatsMap[activeChatId];
+      if (!chat) return;
+      if (chat.type === 'dm') {
+        const peerId = (chat.participants || []).find(id => id !== currentUserId);
+        openUserProfile(peerId);
+      } else {
+        infoTarget = { type: 'chat', id: chat.id };
+        showInfoPanel();
+      }
+    };
+
+    window.openUserProfile = function(userId) {
+      if (!usersMap[userId]) return;
+      infoTarget = { type: 'user', id: userId };
+      showInfoPanel();
+    };
+
+    function showInfoPanel() {
+      const p = document.getElementById('rightInfoPanel');
+      p.classList.remove('hidden');
+      p.classList.add('flex');
+      renderInfoPanel();
+    }
+
+    window.closeInfoPanel = function() {
+      infoTarget = null;
+      const p = document.getElementById('rightInfoPanel');
+      p.classList.add('hidden');
+      p.classList.remove('flex');
+    };
+
+    function renderInfoPanel() {
+      const c = document.getElementById('rightInfoContent');
+      if (!infoTarget) return;
+
+      if (infoTarget.type === 'user') {
+        const u = usersMap[infoTarget.id];
+        if (!u) return;
+        const b = u.badges || {};
+        c.innerHTML = `
+          <div class="text-center pt-2">
+            <div class="w-20 h-20 mx-auto rounded-3xl bg-gradient-to-tr ${u.avatarColor} flex items-center justify-center text-2xl font-bold text-white shadow-xl mb-3">${u.initials}</div>
+            <div class="font-bold text-lg flex items-center justify-center gap-1.5 flex-wrap">${escapeHtml(u.displayName)}${renderBadges(b, false)}</div>
+            <div class="text-xs text-sky-500 font-medium mt-0.5">${escapeHtml(u.username)}</div>
+            ${u.customTitle ? `<span class="inline-block mt-2 px-2.5 py-0.5 rounded-full bg-sky-500/15 text-sky-400 text-[11px] font-semibold">${escapeHtml(u.customTitle)}</span>` : ''}
+            ${u.banned ? `<div class="mt-2 text-xs font-bold text-red-500">🚫 Заблокирован</div>` : ''}
+          </div>
+
+          ${u.id !== currentUserId ? `<button onclick="startDm('${u.id}'); closeInfoPanel();" class="w-full py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white text-xs font-bold transition">💬 Написать в ЛС</button>` : ''}
+
+          ${isAdmin() ? `
+            <div class="p-3.5 rounded-2xl bg-sky-500/10 border border-sky-500/30 space-y-2.5">
+              <div class="text-xs font-bold text-sky-400">🛡️ Быстрое управление Hypergram</div>
+              <div class="grid grid-cols-2 gap-1.5">
+                <button onclick="adminToggleBadge('${u.id}','verified')" class="px-2 py-2 rounded-xl text-[11px] font-semibold border ${b.verified ? 'bg-sky-500 text-white border-sky-500' : 'border-slate-300 dark:border-[#344457]'}">✅ Синяя</button>
+                <button onclick="adminToggleBadge('${u.id}','premium')" class="px-2 py-2 rounded-xl text-[11px] font-semibold border ${b.premium ? 'bg-amber-500 text-white border-amber-500' : 'border-slate-300 dark:border-[#344457]'}">⭐ VIP</button>
+                <button onclick="adminToggleBadge('${u.id}','staff')" class="px-2 py-2 rounded-xl text-[11px] font-semibold border ${b.staff ? 'bg-indigo-500 text-white border-indigo-500' : 'border-slate-300 dark:border-[#344457]'}">🛡️ STAFF</button>
+                <button onclick="adminToggleBadge('${u.id}','scam')" class="px-2 py-2 rounded-xl text-[11px] font-semibold border ${b.scam ? 'bg-red-500 text-white border-red-500' : 'border-slate-300 dark:border-[#344457]'}">⚠️ SCAM</button>
+              </div>
+              ${u.role !== 'admin' ? `
+                <button onclick="adminToggleBan('${u.id}')" class="w-full py-2 rounded-xl text-xs font-bold ${u.banned ? 'bg-emerald-500 text-white' : 'bg-red-500/15 text-red-500'}">${u.banned ? '🔓 Разбанить' : '🚫 Забанить пользователя'}</button>
+              ` : ''}
+            </div>
+          ` : ''}
+        `;
+      } else {
+        const chat = chatsMap[infoTarget.id];
+        if (!chat) return;
+        c.innerHTML = `
+          <div class="text-center pt-2">
+            <div class="w-20 h-20 mx-auto rounded-3xl bg-gradient-to-tr ${chat.avatarColor} flex items-center justify-center text-2xl font-bold text-white shadow-xl mb-3">${chat.initials}</div>
+            <div class="font-bold text-lg flex items-center justify-center gap-1.5">${escapeHtml(chat.title)}${renderBadges(chat.badges, false)}</div>
+            <p class="text-xs text-slate-500 dark:text-[#7f91a4] mt-2">${escapeHtml(chat.description || '')}</p>
+          </div>
+        `;
+      }
+    }
+
+    // =========================================================
+    // АДМИН-ПАНЕЛЬ HYPERGRAM
+    // =========================================================
+    window.openAdminModal = function() {
+      if (!isAdmin()) return;
+      document.getElementById('adminModal').classList.remove('hidden');
+      renderAdminModal();
+    };
+
+    window.closeAdminModal = function() {
+      document.getElementById('adminModal').classList.add('hidden');
+    };
+
+    window.setAdminTab = function(tab) {
+      adminTab = tab;
+      document.getElementById('adminTabUsers').className = tab === 'users'
+        ? 'px-3.5 py-2 rounded-xl text-xs font-semibold bg-sky-500 text-white'
+        : 'px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-500 dark:text-[#7f91a4] hover:bg-slate-100 dark:hover:bg-[#202b36]';
+      document.getElementById('adminTabBroadcast').className = tab === 'broadcast'
+        ? 'px-3.5 py-2 rounded-xl text-xs font-semibold bg-sky-500 text-white'
+        : 'px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-500 dark:text-[#7f91a4] hover:bg-slate-100 dark:hover:bg-[#202b36]';
+      renderAdminModal();
+    };
+
+    function renderAdminModal() {
+      const body = document.getElementById('adminModalBody');
+      if (adminTab === 'broadcast') {
+        body.innerHTML = `
+          <div class="space-y-3">
+            <div class="p-3 rounded-2xl bg-sky-500/10 border border-sky-500/25 text-xs">📢 Сообщение будет опубликовано от имени <b>Hypergram</b> в канале «Новости HYPERGRAM».</div>
+            <textarea id="broadcastInput" rows="4" placeholder="Введите текст новости или объявления..." class="w-full p-3.5 rounded-xl bg-slate-100 dark:bg-[#242f3d] text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/60"></textarea>
+            <button onclick="sendAdminBroadcast()" class="w-full py-3 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 text-white font-bold text-sm shadow-lg">🚀 Опубликовать в Новости</button>
+          </div>
+        `;
+        return;
+      }
+
+      const q = adminSearch.toLowerCase();
+      const users = Object.values(usersMap).filter(u =>
+        u.displayName.toLowerCase().includes(q) || u.username.toLowerCase().includes(q)
+      );
+
+      body.innerHTML = `
+        <input type="text" value="${escapeHtml(adminSearch)}" oninput="window.setAdminSearch(this.value)" placeholder="Поиск пользователя по имени или @нику..." class="w-full px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-[#242f3d] text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/60" />
+        <div class="space-y-2.5">
+          ${users.map(u => {
+            const b = u.badges || {};
+            return `
+              <div class="p-3.5 rounded-2xl bg-slate-100/80 dark:bg-[#202b36] border border-slate-200 dark:border-[#2b3947] space-y-2.5">
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                  <div class="flex items-center gap-2.5">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr ${u.avatarColor} flex items-center justify-center font-bold text-white text-xs">${u.initials}</div>
+                    <div>
+                      <div class="font-semibold text-sm flex items-center gap-1">${escapeHtml(u.displayName)}${renderBadges(b, true)}</div>
+                      <div class="text-xs text-slate-500 dark:text-[#7f91a4]">${escapeHtml(u.username)}</div>
+                    </div>
+                  </div>
+                  ${u.role !== 'admin' ? `
+                    <button onclick="adminToggleBan('${u.id}')" class="px-3 py-1.5 rounded-xl text-xs font-bold ${u.banned ? 'bg-emerald-500 text-white' : 'bg-red-500/15 text-red-500'}">${u.banned ? '🔓 Разбанить' : '🚫 Бан'}</button>
+                  ` : '<span class="px-2.5 py-1 rounded-lg bg-sky-500/20 text-sky-400 text-[11px] font-bold">Админ</span>'}
+                </div>
+
+                <div class="flex flex-wrap gap-1.5">
+                  <button onclick="adminToggleBadge('${u.id}','verified')" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold border ${b.verified ? 'bg-sky-500 text-white border-sky-500' : 'border-slate-300 dark:border-[#344457]'}">✅ Синяя галочка</button>
+                  <button onclick="adminToggleBadge('${u.id}','premium')" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold border ${b.premium ? 'bg-amber-500 text-white border-amber-500' : 'border-slate-300 dark:border-[#344457]'}">⭐ Золотая VIP</button>
+                  <button onclick="adminToggleBadge('${u.id}','staff')" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold border ${b.staff ? 'bg-indigo-500 text-white border-indigo-500' : 'border-slate-300 dark:border-[#344457]'}">🛡️ STAFF</button>
+                  <button onclick="adminToggleBadge('${u.id}','scam')" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold border ${b.scam ? 'bg-red-500 text-white border-red-500' : 'border-slate-300 dark:border-[#344457]'}">⚠️ SCAM</button>
+                </div>
+
+                <div class="flex gap-2">
+                  <input id="title_${u.id}" type="text" value="${escapeHtml(u.customTitle || '')}" placeholder="Кастомный титул (например: VIP Партнер)" class="flex-1 px-3 py-1.5 rounded-xl text-xs bg-white dark:bg-[#17212b] border border-slate-200 dark:border-[#2b3947] focus:outline-none" />
+                  <button onclick="adminSaveTitle('${u.id}')" class="px-3 py-1.5 rounded-xl bg-sky-500 text-white text-xs font-semibold">ОК</button>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    }
+
+    window.setAdminSearch = function(val) {
+      adminSearch = val;
+      renderAdminModal();
+    };
+
+    window.adminToggleBadge = async function(userId, badgeKey) {
+      if (!isAdmin() || !usersMap[userId]) return;
+      const badges = { ...(usersMap[userId].badges || {}) };
+      badges[badgeKey] = !badges[badgeKey];
+      await dbUpdate('hg_users', userId, { badges });
+      showToast('Статус значка обновлен', 'success');
+    };
+
+    window.adminToggleBan = async function(userId) {
+      if (!isAdmin() || !usersMap[userId] || usersMap[userId].role === 'admin') return;
+      const banned = !usersMap[userId].banned;
+      await dbUpdate('hg_users', userId, { banned });
+      showToast(banned ? 'Пользователь заблокирован 🚫' : 'Пользователь разблокирован 🔓', banned ? 'error' : 'success');
+    };
+
+    window.adminSaveTitle = async function(userId) {
+      if (!isAdmin()) return;
+      const val = document.getElementById('title_' + userId).value.trim();
+      await dbUpdate('hg_users', userId, { customTitle: val });
+      showToast('Титул обновлен', 'success');
+    };
+
+    window.sendAdminBroadcast = async function() {
+      if (!isAdmin()) return;
+      const text = document.getElementById('broadcastInput').value.trim();
+      if (!text) return;
+      const id = 'm_news_' + Date.now();
+      await dbSet('hg_messages', id, {
+        id,
+        chatId: 'news_channel',
+        senderId: 'hypergram',
+        text,
+        replyToId: null,
+        reactions: {},
+        timestamp: Date.now(),
+        readBy: ['hypergram']
+      });
+      closeAdminModal();
+      selectChat('news_channel');
+      showToast('Новость опубликована! 📢', 'success');
+    };
+
+    // =========================================================
+    // ТЕМА, МЕНЮ, ЭМОДЗИ
+    // =========================================================
+    window.toggleTheme = function() {
+      theme = theme === 'dark' ? 'light' : 'dark';
+      const isDark = theme === 'dark';
+      document.documentElement.classList.toggle('dark', isDark);
+      document.getElementById('iconSun').classList.toggle('hidden', !isDark);
+      document.getElementById('iconMoon').classList.toggle('hidden', isDark);
+      const add = isDark ? 'chat-wallpaper-dark' : 'chat-wallpaper-light';
+      const rem = isDark ? 'chat-wallpaper-light' : 'chat-wallpaper-dark';
+      ['messagesContainer', 'emptyChatState', 'authScreen'].forEach(id => {
+        const el = document.getElementById(id);
+        el.classList.remove(rem);
+        el.classList.add(add);
+      });
+    };
+
+    window.openDrawer = function() {
+      document.getElementById('drawerOverlay').classList.remove('hidden');
+      document.getElementById('mainDrawer').classList.remove('-translate-x-full');
+    };
+
+    window.closeDrawer = function() {
+      document.getElementById('drawerOverlay').classList.add('hidden');
+      document.getElementById('mainDrawer').classList.add('-translate-x-full');
+    };
+
+    window.toggleEmojiPopover = function(e) {
+      e.stopPropagation();
+      document.getElementById('emojiPopover').classList.toggle('hidden');
+    };
+
+    window.insertEmoji = function(emoji) {
+      const input = document.getElementById('messageInput');
+      input.value += emoji;
+      input.focus();
+    };
+
+    // Инициализация событий DOM
+    document.getElementById('emojiGrid').innerHTML = EMOJIS.map(e =>
+      `<button type="button" onclick="insertEmoji('${e}')" class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-[#2b3947]">${e}</button>`
+    ).join('');
+
+    document.getElementById('messageInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('#msgContextMenu')) document.getElementById('msgContextMenu').classList.add('hidden');
+      if (!e.target.closest('#emojiPopover') && !e.target.closest('#btnEmoji')) document.getElementById('emojiPopover').classList.add('hidden');
+    });
+
+    // Запуск
+    initBackend();
+  </script>
+</body>
+</html>
+```
