@@ -341,7 +341,7 @@
     // Firebase подключается динамически внутри initBackend() (см. ниже).
     // Если CDN недоступен — приложение всё равно запустится в локальном режиме.
     let initializeApp, getAuth, signInAnonymously, signInWithCustomToken;
-    let getFirestore, doc, setDoc, updateDoc, deleteDoc, collection, onSnapshot;
+    let getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, collection, onSnapshot;
 
     const AVATAR_GRADIENTS = [
       'from-sky-500 to-indigo-600',
@@ -424,6 +424,12 @@
     const LAST_LOGIN_KEY = 'hypergram_last_login_v1'; // последний введённый логин
     const LAST_CHAT_KEY = 'hypergram_last_chat_v1';   // { userId: chatId }
     let sessionRestoreDone = false;
+    let cloudSession = null;   // сессия, сохранённая в Firestore (ключ — uid Firebase)
+    let cloudUid = null;
+
+    function sessionDocRef() {
+      return doc(db, 'artifacts', appId, 'public', 'data', 'hg_sessions', cloudUid);
+    }
 
     function readJson(key, fallback) {
       try {
@@ -439,11 +445,21 @@
     }
 
     function saveSession(uid) {
-      writeJson(SESSION_KEY, { userId: uid, loginAt: Date.now() });
+      const data = { userId: uid, loginAt: Date.now() };
+      writeJson(SESSION_KEY, data);
       store.set(LAST_LOGIN_KEY, uid);
+      // Облачная сессия: работает даже там, где браузер блокирует localStorage
+      if (useCloud && db && cloudUid) {
+        cloudSession = data;
+        setDoc(sessionDocRef(), data).catch(e => console.warn('Не удалось сохранить сессию в облаке:', e));
+      }
     }
     function clearSession() {
       removeKey(SESSION_KEY);
+      cloudSession = null;
+      if (useCloud && db && cloudUid) {
+        deleteDoc(sessionDocRef()).catch(e => console.warn('Не удалось удалить сессию в облаке:', e));
+      }
     }
     function saveLastChat() {
       if (!currentUserId || !activeChatId) return;
@@ -465,7 +481,7 @@
     // только тогда можно решить, что сохранённого пользователя действительно нет.
     function tryRestoreSession(authoritative = true) {
       if (sessionRestoreDone || currentUserId) return;
-      const session = readJson(SESSION_KEY, null);
+      const session = cloudSession || readJson(SESSION_KEY, null);
       if (!session || !session.userId) { sessionRestoreDone = true; return; }
       if (usersMap[session.userId]) {
         sessionRestoreDone = true;
@@ -612,7 +628,7 @@
           ]);
           ({ initializeApp } = appMod);
           ({ getAuth, signInAnonymously, signInWithCustomToken } = authMod);
-          ({ getFirestore, doc, setDoc, updateDoc, deleteDoc, collection, onSnapshot } = fsMod);
+          ({ getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, collection, onSnapshot } = fsMod);
 
           const firebaseConfig = JSON.parse(__firebase_config);
           const app = initializeApp(firebaseConfig);
@@ -627,7 +643,20 @@
 
           if (!auth.currentUser) throw new Error('Auth failed');
           useCloud = true;
+          cloudUid = auth.currentUser.uid;
+
+          // Загружаем сохранённую сессию из облака до подписки на пользователей
+          try {
+            const sessSnap = await getDoc(sessionDocRef());
+            cloudSession = sessSnap.exists() ? sessSnap.data() : null;
+          } catch (e) {
+            console.warn('Сессия в облаке недоступна:', e);
+            cloudSession = null;
+          }
           statusEl.textContent = '🟢 Подключено к облаку HYPERGRAM (Реальное время)';
+          if (auth.currentUser.isAnonymous && !persistentStorageOk) {
+            statusEl.textContent += ' ⚠️ Анонимный вход меняется при каждой загрузке — автовход может не сработать';
+          }
 
           // Подписка на коллекции Firestore
           onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'hg_users'), (snap) => {
