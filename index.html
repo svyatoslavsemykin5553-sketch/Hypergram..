@@ -338,9 +338,10 @@
        ЛОГИКА FIREBASE FIRESTORE + РЕЗЕРВНЫЙ РЕЖИМ
   ========================================================== -->
   <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, doc, setDoc, updateDoc, deleteDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    // Firebase подключается динамически внутри initBackend() (см. ниже).
+    // Если CDN недоступен — приложение всё равно запустится в локальном режиме.
+    let initializeApp, getAuth, signInAnonymously, signInWithCustomToken;
+    let getFirestore, doc, setDoc, updateDoc, deleteDoc, collection, onSnapshot;
 
     const AVATAR_GRADIENTS = [
       'from-sky-500 to-indigo-600',
@@ -373,19 +374,119 @@
     let adminTab = 'users';
     let adminSearch = '';
 
-    // Резервное хранилище в памяти/localStorage, если Firebase не передан окружением
+    // =========================================================
+    // НАДЁЖНОЕ ХРАНИЛИЩЕ: localStorage → sessionStorage → window.name
+    // (window.name переживает обновление страницы даже там, где localStorage заблокирован)
+    // =========================================================
+    const WN_PREFIX = 'HGSTORE:';
+    function wnRead() {
+      try {
+        if (window.name && window.name.startsWith(WN_PREFIX)) return JSON.parse(window.name.slice(WN_PREFIX.length)) || {};
+      } catch (e) {}
+      return {};
+    }
+    function wnWrite(obj) {
+      try { window.name = WN_PREFIX + JSON.stringify(obj); } catch (e) {}
+    }
+
+    let persistentStorageOk = true; // false, если не работает ни localStorage, ни sessionStorage
+
+    const store = {
+      get(key) {
+        try { const v = window.localStorage.getItem(key); if (v !== null && v !== undefined) return v; } catch (e) {}
+        try { const v = window.sessionStorage.getItem(key); if (v !== null && v !== undefined) return v; } catch (e) {}
+        const wn = wnRead();
+        return Object.prototype.hasOwnProperty.call(wn, key) ? wn[key] : null;
+      },
+      set(key, value) {
+        value = String(value);
+        let ok = false;
+        try { window.localStorage.setItem(key, value); ok = true; } catch (e) {}
+        try { window.sessionStorage.setItem(key, value); ok = true; } catch (e) {}
+        if (!ok) persistentStorageOk = false;
+        // window.name — только для небольших данных (сессия, последний чат/логин)
+        if (key !== FALLBACK_KEY) {
+          const wn = wnRead(); wn[key] = value; wnWrite(wn);
+        }
+      },
+      remove(key) {
+        try { window.localStorage.removeItem(key); } catch (e) {}
+        try { window.sessionStorage.removeItem(key); } catch (e) {}
+        const wn = wnRead(); delete wn[key]; wnWrite(wn);
+      }
+    };
+
+    // Резервное хранилище данных, если Firebase не передан окружением
     const FALLBACK_KEY = 'hypergram_fallback_db_v2';
+
+    // Сохранение входа: храним только id пользователя (без пароля)
+    const SESSION_KEY = 'hypergram_session_v1';       // { userId, loginAt }
+    const LAST_LOGIN_KEY = 'hypergram_last_login_v1'; // последний введённый логин
+    const LAST_CHAT_KEY = 'hypergram_last_chat_v1';   // { userId: chatId }
+    let sessionRestoreDone = false;
+
+    function readJson(key, fallback) {
+      try {
+        const raw = store.get(key);
+        return raw ? JSON.parse(raw) : fallback;
+      } catch (e) { return fallback; }
+    }
+    function writeJson(key, value) {
+      try { store.set(key, JSON.stringify(value)); } catch (e) {}
+    }
+    function removeKey(key) {
+      try { store.remove(key); } catch (e) {}
+    }
+
+    function saveSession(uid) {
+      writeJson(SESSION_KEY, { userId: uid, loginAt: Date.now() });
+      store.set(LAST_LOGIN_KEY, uid);
+    }
+    function clearSession() {
+      removeKey(SESSION_KEY);
+    }
+    function saveLastChat() {
+      if (!currentUserId || !activeChatId) return;
+      const map = readJson(LAST_CHAT_KEY, {});
+      map[currentUserId] = activeChatId;
+      writeJson(LAST_CHAT_KEY, map);
+    }
+    function getLastChat(uid) {
+      const id = readJson(LAST_CHAT_KEY, {})[uid];
+      return id && chatsMap[id] ? id : 'global_chat';
+    }
+    function prefillLastLogin() {
+      const last = store.get(LAST_LOGIN_KEY);
+      if (last) document.getElementById('authUsername').value = last;
+    }
+
+    // Автоматический вход по сохранённой сессии.
+    // authoritative = true, когда список пользователей получен точно (а не неполный кэш) —
+    // только тогда можно решить, что сохранённого пользователя действительно нет.
+    function tryRestoreSession(authoritative = true) {
+      if (sessionRestoreDone || currentUserId) return;
+      const session = readJson(SESSION_KEY, null);
+      if (!session || !session.userId) { sessionRestoreDone = true; return; }
+      if (usersMap[session.userId]) {
+        sessionRestoreDone = true;
+        loginSuccess(session.userId, true);
+      } else if (authoritative) {
+        sessionRestoreDone = true;
+        clearSession(); // пользователя больше нет
+      }
+      // иначе ждём следующую порцию данных
+    }
 
     function saveFallback() {
       if (useCloud) return;
       try {
-        localStorage.setItem(FALLBACK_KEY, JSON.stringify({ usersMap, chatsMap, messagesList }));
+        store.set(FALLBACK_KEY, JSON.stringify({ usersMap, chatsMap, messagesList }));
       } catch (e) {}
     }
 
     function loadFallback() {
       try {
-        const raw = localStorage.getItem(FALLBACK_KEY);
+        const raw = store.get(FALLBACK_KEY);
         if (raw) {
           const parsed = JSON.parse(raw);
           usersMap = parsed.usersMap || {};
@@ -503,6 +604,16 @@
       const statusEl = document.getElementById('syncStatusBadge');
       try {
         if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+          const FB = 'https://www.gstatic.com/firebasejs/11.6.1/';
+          const [appMod, authMod, fsMod] = await Promise.all([
+            import(FB + 'firebase-app.js'),
+            import(FB + 'firebase-auth.js'),
+            import(FB + 'firebase-firestore.js')
+          ]);
+          ({ initializeApp } = appMod);
+          ({ getAuth, signInAnonymously, signInWithCustomToken } = authMod);
+          ({ getFirestore, doc, setDoc, updateDoc, deleteDoc, collection, onSnapshot } = fsMod);
+
           const firebaseConfig = JSON.parse(__firebase_config);
           const app = initializeApp(firebaseConfig);
           auth = getAuth(app);
@@ -524,6 +635,7 @@
             snap.forEach(d => { next[d.id] = d.data(); });
             usersMap = next;
             ensureSeedData();
+            tryRestoreSession(!snap.metadata.fromCache);
             renderIfLoggedIn();
           }, (err) => console.error('Users sync error:', err));
 
@@ -554,6 +666,10 @@
       loadFallback();
       await ensureSeedData();
       statusEl.textContent = '🟡 Локальный режим (автосохранение в браузере)';
+      tryRestoreSession(true);
+      if (!persistentStorageOk) {
+        statusEl.textContent += ' ⚠️ Хранилище браузера заблокировано — данные сохраняются только пока вкладка открыта';
+      }
     }
 
     // =========================================================
@@ -690,22 +806,39 @@
       }
     };
 
-    function loginSuccess(uid) {
+    function loginSuccess(uid, restored = false) {
       currentUserId = uid;
       document.getElementById('authScreen').classList.add('hidden');
       document.getElementById('app').classList.remove('hidden');
       document.getElementById('authForm').reset();
-      activeChatId = 'global_chat';
+      activeChatId = getLastChat(uid);
+
+      // Запоминаем вход, чтобы после перезагрузки страницы не вводить данные заново
+      saveSession(uid);
+      if (!restored && usersMap[uid]) {
+        dbUpdate('hg_users', uid, { lastLoginAt: Date.now() }).catch(() => {});
+      }
+
       renderIfLoggedIn();
-      showToast(`Добро пожаловать, ${usersMap[uid]?.displayName || uid}! ⚡`, 'success');
+      if (!restored) {
+        showToast(`Добро пожаловать, ${usersMap[uid]?.displayName || uid}! ⚡`, 'success');
+      }
     }
 
     window.logout = function() {
+      const uid = currentUserId;
+      saveLastChat();
+      if (uid && usersMap[uid]) {
+        dbUpdate('hg_users', uid, { lastLogoutAt: Date.now() }).catch(() => {});
+      }
+      clearSession(); // выход — сессия удаляется, при перезагрузке откроется экран входа
       currentUserId = null;
       closeInfoPanel();
       closeAdminModal();
+      closeDrawer();
       document.getElementById('app').classList.add('hidden');
       document.getElementById('authScreen').classList.remove('hidden');
+      prefillLastLogin();
       showToast('Вы вышли из аккаунта');
     };
 
@@ -835,6 +968,7 @@
 
     window.selectChat = function(chatId) {
       activeChatId = chatId;
+      saveLastChat();
       cancelReply();
       if (window.innerWidth < 768) {
         document.getElementById('leftSidebar').classList.add('hidden');
@@ -1334,6 +1468,7 @@
     });
 
     // Запуск
+    prefillLastLogin();
     initBackend();
   </script>
 </body>
