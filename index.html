@@ -326,7 +326,7 @@
     // Firebase подключается динамически внутри initBackend() (см. ниже).
     // Если CDN недоступен — приложение всё равно запустится в локальном режиме.
     let initializeApp, getAuth, signInAnonymously, signInWithCustomToken;
-    let getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, collection, onSnapshot;
+    let getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, collection, onSnapshot, query, orderBy, limit;
 
     const AVATAR_GRADIENTS = [
       'from-sky-500 to-indigo-600',
@@ -343,6 +343,90 @@
     let db = null;
     let auth = null;
     let appId = typeof __app_id !== 'undefined' ? __app_id : 'hypergram-default';
+
+    // =========================================================
+    // ОБЩАЯ БАЗА ДЛЯ ВСЕХ ПОЛЬЗОВАТЕЛЕЙ
+    // Чтобы аккаунты и чаты видели ВСЕ люди, нужен сервер. Создай бесплатный проект на
+    // https://console.firebase.google.com, включи Authentication → Anonymous и Firestore,
+    // и вставь сюда данные веб-приложения (Project settings → Your apps → Config).
+    // Пока поля пустые, мессенджер работает локально, и аккаунты видны только в этом браузере.
+    // =========================================================
+    const FIREBASE_CONFIG = {
+      apiKey: 'AIzaSyBIKMAfnM-9Mt23btqTh0pxIi5o63w-P_Y',
+      authDomain: 'hypergram-5f5ee.firebaseapp.com',
+      projectId: 'hypergram-5f5ee',
+      storageBucket: 'hypergram-5f5ee.firebasestorage.app',
+      messagingSenderId: '587088350954',
+      appId: '1:587088350954:web:ddc1e420ad995858695193'
+    };
+
+    // =========================================================
+    // ПАРОЛИ: в базе хранится только соленый хеш, а не сам пароль
+    // =========================================================
+    const ADMIN_SALT = 'hypergram-admin';
+    const ADMIN_HASH = '807bf9b0444fba2506169bbd8185aab79066bd33275218725fbc2d7f78557c61'; // хеш пароля главного админа
+    const HASH_ROUNDS = 5000;
+    const MESSAGES_LIMIT = 300; // сколько последних сообщений подгружать (экономит бесплатную квоту)
+    const textEnc = new TextEncoder();
+
+    function sha256Js(data) {
+      const K = [], H = [];
+      for (let c = 2, n = 0; n < 64; c++) {
+        let prime = true;
+        for (let d = 2; d * d <= c; d++) if (c % d === 0) { prime = false; break; }
+        if (!prime) continue;
+        if (n < 8) H[n] = (Math.pow(c, 1 / 2) % 1) * 4294967296 | 0;
+        K[n++] = (Math.pow(c, 1 / 3) % 1) * 4294967296 | 0;
+      }
+      const len = data.length, total = (((len + 9 + 63) >> 6) << 6);
+      const buf = new Uint8Array(total);
+      buf.set(data); buf[len] = 0x80;
+      const dv = new DataView(buf.buffer);
+      dv.setUint32(total - 8, Math.floor(len * 8 / 4294967296));
+      dv.setUint32(total - 4, (len * 8) >>> 0);
+      const w = new Array(64), rr = (x, n) => (x >>> n) | (x << (32 - n));
+      for (let off = 0; off < total; off += 64) {
+        for (let i = 0; i < 16; i++) w[i] = dv.getUint32(off + i * 4);
+        for (let i = 16; i < 64; i++) {
+          const s0 = rr(w[i-15], 7) ^ rr(w[i-15], 18) ^ (w[i-15] >>> 3);
+          const s1 = rr(w[i-2], 17) ^ rr(w[i-2], 19) ^ (w[i-2] >>> 10);
+          w[i] = (w[i-16] + s0 + w[i-7] + s1) | 0;
+        }
+        let [a, b, c, d, e, f, g, h] = H;
+        for (let i = 0; i < 64; i++) {
+          const t1 = (h + (rr(e, 6) ^ rr(e, 11) ^ rr(e, 25)) + ((e & f) ^ (~e & g)) + K[i] + w[i]) | 0;
+          const t2 = ((rr(a, 2) ^ rr(a, 13) ^ rr(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) | 0;
+          h = g; g = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0;
+        }
+        const v = [a, b, c, d, e, f, g, h];
+        for (let i = 0; i < 8; i++) H[i] = (H[i] + v[i]) | 0;
+      }
+      const out = new Uint8Array(32), odv = new DataView(out.buffer);
+      H.forEach((x, i) => odv.setUint32(i * 4, x >>> 0));
+      return out;
+    }
+    async function sha256(bytes) {
+      try {
+        if (window.crypto && window.crypto.subtle) return new Uint8Array(await window.crypto.subtle.digest('SHA-256', bytes));
+      } catch (e) {}
+      return sha256Js(bytes);
+    }
+    async function hashPassword(pw, salt) {
+      const s = textEnc.encode(salt);
+      let h = await sha256(textEnc.encode(salt + ':' + pw));
+      for (let i = 0; i < HASH_ROUNDS; i++) {
+        const m = new Uint8Array(h.length + s.length);
+        m.set(h); m.set(s, h.length);
+        h = await sha256(m);
+      }
+      return Array.from(h, x => x.toString(16).padStart(2, '0')).join('');
+    }
+    function newSalt() {
+      const a = new Uint8Array(12);
+      (window.crypto || {}).getRandomValues ? window.crypto.getRandomValues(a) : a.forEach((_, i) => a[i] = Math.random() * 256);
+      return Array.from(a, x => x.toString(16).padStart(2, '0')).join('');
+    }
+
     let useCloud = false;
 
     let usersMap = {};       // { userId: userObj }
@@ -540,55 +624,70 @@
     }
 
     // Инициализация базовых данных (Админ Hypergram + Общий чат + Канал Новостей)
-    async function ensureSeedData() {
-      if (!usersMap['hypergram']) {
-        await dbSet('hg_users', 'hypergram', {
-          id: 'hypergram',
-          username: '@Hypergram',
-          displayName: 'Hypergram',
-          password: 'hyper2026',
-          role: 'admin',
-          avatarColor: 'from-sky-500 via-blue-500 to-indigo-600',
-          initials: 'HG',
-          badges: { verified: true, premium: true, staff: true, scam: false },
-          customTitle: 'Главный администратор',
-          banned: false,
-          createdAt: Date.now()
-        });
+    // Проверка существования записи (в облаке — по серверу, а не по кэшу клиента)
+    async function docExists(col, id) {
+      if (useCloud && db) {
+        const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id));
+        return snap.exists();
       }
+      if (col === 'hg_users') return !!usersMap[id];
+      if (col === 'hg_chats') return !!chatsMap[id];
+      return messagesList.some(m => m.id === id);
+    }
+    async function createIfMissing(col, id, data) {
+      if (await docExists(col, id)) return false;
+      await dbSet(col, id, data);
+      return true;
+    }
 
-      if (!chatsMap['global_chat']) {
-        await dbSet('hg_chats', 'global_chat', {
-          id: 'global_chat',
-          type: 'group',
-          title: 'HYPERGRAM Общий чат',
-          description: 'Главный глобальный чат всех пользователей HYPERGRAM',
-          avatarColor: 'from-indigo-500 to-purple-600',
-          initials: '🌐',
-          badges: { verified: true, premium: false, staff: false, scam: false },
-          createdAt: Date.now()
-        });
-      }
+    // Начальные данные создаются один раз и НИКОГДА не перезаписывают существующие
+    let seedPromise = null;
+    function ensureSeedData() {
+      if (!seedPromise) seedPromise = runSeed().catch(e => { console.warn('Seed error:', e); seedPromise = null; });
+      return seedPromise;
+    }
+    async function runSeed() {
+      await createIfMissing('hg_users', 'hypergram', {
+        id: 'hypergram',
+        username: '@Hypergram',
+        displayName: 'Hypergram',
+        passHash: ADMIN_HASH,
+        salt: ADMIN_SALT,
+        role: 'admin',
+        avatarColor: 'from-sky-500 via-blue-500 to-indigo-600',
+        initials: 'HG',
+        badges: { verified: true, premium: true, staff: true, scam: false },
+        customTitle: 'Главный администратор',
+        banned: false,
+        createdAt: Date.now()
+      });
 
-      if (!chatsMap['news_channel']) {
-        await dbSet('hg_chats', 'news_channel', {
-          id: 'news_channel',
-          type: 'channel',
-          title: 'Новости HYPERGRAM',
-          description: 'Официальный канал обновлений. Писать может только @Hypergram.',
-          avatarColor: 'from-sky-500 to-blue-600',
-          initials: '📢',
-          badges: { verified: true, premium: true, staff: true, scam: false },
-          createdAt: Date.now()
-        });
-      }
+      await createIfMissing('hg_chats', 'global_chat', {
+        id: 'global_chat',
+        type: 'group',
+        title: 'HYPERGRAM Общий чат',
+        description: 'Главный глобальный чат всех пользователей HYPERGRAM',
+        avatarColor: 'from-indigo-500 to-purple-600',
+        initials: '🌐',
+        badges: { verified: true, premium: false, staff: false, scam: false },
+        createdAt: Date.now()
+      });
 
-      // Приветственное сообщение в канал новостей, если пусто
-      const hasNews = messagesList.some(m => m.chatId === 'news_channel');
-      if (!hasNews) {
-        const msgId = 'welcome_news_1';
-        await dbSet('hg_messages', msgId, {
-          id: msgId,
+      const newsCreated = await createIfMissing('hg_chats', 'news_channel', {
+        id: 'news_channel',
+        type: 'channel',
+        title: 'Новости HYPERGRAM',
+        description: 'Официальный канал обновлений. Писать может только @Hypergram.',
+        avatarColor: 'from-sky-500 to-blue-600',
+        initials: '📢',
+        badges: { verified: true, premium: true, staff: true, scam: false },
+        createdAt: Date.now()
+      });
+
+      // Приветствие — только при первом создании канала
+      if (newsCreated) {
+        await createIfMissing('hg_messages', 'welcome_news_1', {
+          id: 'welcome_news_1',
           chatId: 'news_channel',
           senderId: 'hypergram',
           text: 'Добро пожаловать в HYPERGRAM! Общайтесь в реальном времени, находите друзей по @username и получайте верификацию от администрации.',
@@ -601,10 +700,18 @@
     }
 
     // Подключение к Firebase Firestore
+    let connectError = null;
     async function initBackend() {
       const statusEl = document.getElementById('syncStatusBadge');
       try {
+        let fbCfg = null, fbToken = null;
         if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+          fbCfg = JSON.parse(__firebase_config);
+          if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) fbToken = __initial_auth_token;
+        } else if (FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.projectId) {
+          fbCfg = FIREBASE_CONFIG;
+        }
+        if (fbCfg) {
           const FB = 'https://www.gstatic.com/firebasejs/11.6.1/';
           const [appMod, authMod, fsMod] = await Promise.all([
             import(FB + 'firebase-app.js'),
@@ -613,15 +720,14 @@
           ]);
           ({ initializeApp } = appMod);
           ({ getAuth, signInAnonymously, signInWithCustomToken } = authMod);
-          ({ getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, collection, onSnapshot } = fsMod);
+          ({ getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, collection, onSnapshot, query, orderBy, limit } = fsMod);
 
-          const firebaseConfig = JSON.parse(__firebase_config);
-          const app = initializeApp(firebaseConfig);
+          const app = initializeApp(fbCfg);
           auth = getAuth(app);
           db = getFirestore(app);
 
-          if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-            await signInWithCustomToken(auth, __initial_auth_token);
+          if (fbToken) {
+            await signInWithCustomToken(auth, fbToken);
           } else {
             await signInAnonymously(auth);
           }
@@ -648,7 +754,6 @@
             const next = {};
             snap.forEach(d => { next[d.id] = d.data(); });
             usersMap = next;
-            ensureSeedData();
             tryRestoreSession(!snap.metadata.fromCache);
             renderIfLoggedIn();
           }, (err) => console.error('Users sync error:', err));
@@ -660,7 +765,8 @@
             renderIfLoggedIn();
           }, (err) => console.error('Chats sync error:', err));
 
-          onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'hg_messages'), (snap) => {
+          // Грузим только последние сообщения: бесплатный лимит Firebase — 50 000 чтений в день
+          onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', 'hg_messages'), orderBy('timestamp', 'desc'), limit(MESSAGES_LIMIT)), (snap) => {
             const next = [];
             snap.forEach(d => { next.push(d.data()); });
             next.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
@@ -673,13 +779,16 @@
         }
       } catch (err) {
         console.warn('Firebase недоступен, включен локальный режим:', err);
+        connectError = err;
       }
 
       // Резервный режим
       useCloud = false;
       loadFallback();
       await ensureSeedData();
-      statusEl.textContent = '🟡 Локальный режим (автосохранение в браузере)';
+      statusEl.textContent = connectError
+        ? '🔴 Не удалось подключиться к Firebase — аккаунты сохраняются только в этом браузере'
+        : '🟡 Локальный режим: аккаунты видны только в этом браузере (подключи Firebase — см. FIREBASE_CONFIG в коде)';
       tryRestoreSession(true);
       if (!persistentStorageOk) {
         statusEl.textContent += ' ⚠️ Хранилище браузера заблокировано — данные сохраняются только пока вкладка открыта';
@@ -777,7 +886,18 @@
 
       if (authMode === 'login') {
         const user = usersMap[uid];
-        if (!user || user.password !== password) {
+        let okPass = false;
+        if (user && user.passHash) {
+          okPass = (await hashPassword(password, user.salt || '')) === user.passHash;
+        } else if (user && user.password) {
+          // старый аккаунт с паролем открытым текстом: проверяем и сразу переводим на хеш
+          okPass = user.password === password;
+          if (okPass) {
+            const salt = newSalt();
+            dbUpdate('hg_users', uid, { passHash: await hashPassword(password, salt), salt, password: '' }).catch(() => {});
+          }
+        }
+        if (!okPass) {
           errEl.textContent = 'Неверный логин или пароль.';
           errEl.classList.remove('hidden');
           return;
@@ -794,11 +914,15 @@
           errEl.classList.remove('hidden');
           return;
         }
-        if (usersMap[uid]) {
+        let taken = !!usersMap[uid];
+        try { if (!taken) taken = await docExists('hg_users', uid); } catch (err) { console.warn(err); }
+        if (taken) {
           errEl.textContent = 'Этот логин уже занят.';
           errEl.classList.remove('hidden');
           return;
         }
+        const salt = newSalt();
+        const passHash = await hashPassword(password, salt);
 
         const initials = displayName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || 'HG';
         const color = AVATAR_GRADIENTS[Math.floor(Math.random() * AVATAR_GRADIENTS.length)];
@@ -807,7 +931,8 @@
           id: uid,
           username: '@' + uid,
           displayName: displayName,
-          password: password,
+          passHash: passHash,
+          salt: salt,
           role: 'user',
           avatarColor: color,
           initials: initials,
