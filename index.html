@@ -104,6 +104,11 @@
       <div id="syncStatusBadge" class="text-center text-[11px] text-slate-400 dark:text-[#8d887c]">
         Подключение к серверу...
       </div>
+      <div id="storageWarning" class="hidden p-3 border border-amber-500/50 text-amber-600 dark:text-amber-500 text-[11px] leading-snug">
+        Эта страница открыта в ограниченном окне (предпросмотр или встроенный фрейм): браузер запрещает ей сохранять данные,
+        поэтому вход не запоминается после обновления. Открой файл напрямую в браузере (двойной клик по index.html)
+        или размести его на бесплатном хостинге.
+      </div>
     </div>
   </div>
 
@@ -460,6 +465,21 @@
 
     let persistentStorageOk = true; // false, если не работает ни localStorage, ни sessionStorage
 
+    // Проверяем при запуске, разрешает ли браузер хранить данные на этой странице
+    function probeStorage() {
+      let ok = false;
+      try {
+        window.localStorage.setItem('__hg_probe', '1');
+        ok = window.localStorage.getItem('__hg_probe') === '1';
+        window.localStorage.removeItem('__hg_probe');
+      } catch (e) { ok = false; }
+      persistentStorageOk = ok;
+      const w = document.getElementById('storageWarning');
+      if (w) w.classList.toggle('hidden', ok);
+      if (!ok) console.warn('[hypergram] localStorage заблокирован: вход не сможет запоминаться между обновлениями страницы');
+      return ok;
+    }
+
     const store = {
       get(key) {
         try { const v = window.localStorage.getItem(key); if (v !== null && v !== undefined) return v; } catch (e) {}
@@ -555,7 +575,7 @@
       if (usersMap[session.userId]) {
         sessionRestoreDone = true;
         loginSuccess(session.userId, true);
-      } else if (authoritative) {
+      } else if (authoritative && Object.keys(usersMap).length > 0) {
         sessionRestoreDone = true;
         clearSession(); // пользователя больше нет
       }
@@ -732,9 +752,10 @@
           auth = getAuth(app);
           db = getFirestore(app);
 
+          if (auth.authStateReady) await auth.authStateReady(); // ждём восстановления сохранённого пользователя
           if (fbToken) {
             await signInWithCustomToken(auth, fbToken);
-          } else {
+          } else if (!auth.currentUser) {
             await signInAnonymously(auth);
           }
 
@@ -964,7 +985,7 @@
         dbUpdate('hg_users', uid, { lastLoginAt: Date.now() }).catch(() => {});
       }
 
-      renderIfLoggedIn();
+      try { renderIfLoggedIn(); } catch (e) { console.warn('render after login:', e); }
       if (!restored) {
         showToast(`Добро пожаловать, ${usersMap[uid]?.displayName || uid}!`, 'success');
       }
@@ -1613,6 +1634,7 @@
     });
 
     // Запуск
+    probeStorage();
     prefillLastLogin();
     initBackend();
   </script>
