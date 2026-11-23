@@ -115,6 +115,23 @@
     .hg-typing-dots span { display: inline-block; animation: hgTypingBlink 1.2s infinite; }
     .hg-typing-dots span:nth-child(2) { animation-delay: 0.2s; }
     .hg-typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+    /* Сигнальная чёрточка прочтения (точка = отправлено, полоска = прочитано) */
+    .hg-sig {
+      display: inline-block;
+      vertical-align: middle;
+      height: 3px;
+      border-radius: 1px;
+      transition: width 0.22s ease, background-color 0.22s ease, opacity 0.22s ease;
+    }
+    .hg-sig-sent {
+      width: 4px;
+      background-color: rgba(255, 255, 255, 0.48);
+    }
+    .hg-sig-read {
+      width: 14px;
+      background-color: #ffffff;
+    }
   </style>
 </head>
 
@@ -745,24 +762,40 @@
       }
     }
     // =========================================================
-    // СТАТУС ПРОЧТЕНИЯ СООБЩЕНИЙ (✓ отправлено / ✓✓ прочитано)
+    // СТАТУС ПРОЧТЕНИЯ: СИГНАЛЬНАЯ ЧЁРТОЧКА (· отправлено / — прочитано)
+    // Хранится в hg_users/{userId}.readChats[chatId] = timestamp последнего прочитанного сообщения
+    // (1 запись вместо сотни + работает на любом устройстве независимо от часов)
     // =========================================================
-    const markingReadIds = new Set();
+    const lastSentReadCursor = {};
+
+    function resetReadCursorsCache() {
+      Object.keys(lastSentReadCursor).forEach(k => delete lastSentReadCursor[k]);
+    }
 
     function isMessageRead(msg, chat) {
-      const readers = Array.isArray(msg?.readBy) ? msg.readBy : [];
-      if (!chat) return false;
+      if (!chat || !msg) return false;
+      const msgTs = Number(msg.timestamp) || 0;
+      const readers = Array.isArray(msg.readBy) ? msg.readBy : [];
+
       if (chat.type === 'dm') {
         const peerId = (chat.participants || []).find(id => id !== msg.senderId);
         if (!peerId) return true; // чат с самим собой
+        const peer = usersMap[peerId];
+        const peerCursor = Number(peer?.readChats?.[chat.id] || 0);
+        if (msgTs > 0 && peerCursor >= msgTs) return true;
         return readers.includes(peerId);
       }
+
       // В группах/каналах — прочитано, если открыл хотя бы один другой участник
+      const anyCursorRead = Object.values(usersMap).some(u =>
+        u && u.id !== msg.senderId && msgTs > 0 && Number(u.readChats?.[chat.id] || 0) >= msgTs
+      );
+      if (anyCursorRead) return true;
       return readers.some(id => id && id !== msg.senderId);
     }
 
     function markActiveChatAsRead() {
-      if (!currentUserId || !activeChatId || !chatsMap[activeChatId]) return;
+      if (!currentUserId || !activeChatId || !chatsMap[activeChatId] || !usersMap[currentUserId]) return;
       if (document.hidden) return;
 
       const pinScreen = document.getElementById('pinLockScreen');
@@ -774,22 +807,26 @@
       if (window.getComputedStyle(chatArea).display === 'none') return;
       if (window.getComputedStyle(activeContainer).display === 'none') return;
 
-      const unread = messagesList.filter(m =>
-        m.chatId === activeChatId &&
-        m.senderId !== currentUserId &&
-        !(Array.isArray(m.readBy) && m.readBy.includes(currentUserId)) &&
-        !markingReadIds.has(m.id)
-      );
-      if (!unread.length) return;
+      let maxIncomingTs = 0;
+      for (let i = 0; i < messagesList.length; i++) {
+        const m = messagesList[i];
+        if (m.chatId === activeChatId && m.senderId !== currentUserId) {
+          const ts = Number(m.timestamp) || 0;
+          if (ts > maxIncomingTs) maxIncomingTs = ts;
+        }
+      }
+      if (!maxIncomingTs) return;
 
-      unread.forEach(m => {
-        markingReadIds.add(m.id);
-        const existing = Array.isArray(m.readBy) ? m.readBy : [];
-        const nextReadBy = Array.from(new Set([...existing, currentUserId]));
-        dbUpdate('hg_messages', m.id, { readBy: nextReadBy }).catch(e => {
-          console.warn('Read receipt update error:', e);
-          markingReadIds.delete(m.id);
-        });
+      const curUser = usersMap[currentUserId];
+      const savedTs = Number(curUser?.readChats?.[activeChatId] || 0);
+      const sentTs = Number(lastSentReadCursor[activeChatId] || 0);
+      if (maxIncomingTs <= savedTs || maxIncomingTs <= sentTs) return;
+
+      lastSentReadCursor[activeChatId] = maxIncomingTs;
+      const nextReadChats = { ...(curUser.readChats || {}), [activeChatId]: maxIncomingTs };
+      dbUpdate('hg_users', currentUserId, { readChats: nextReadChats }).catch(e => {
+        console.warn('Read cursor update error:', e);
+        delete lastSentReadCursor[activeChatId];
       });
     }
 
@@ -1516,7 +1553,7 @@
     };
 
     function loginSuccess(uid, restored = false) {
-      markingReadIds.clear();
+      resetReadCursorsCache();
       currentUserId = uid;
       document.getElementById('authScreen').classList.add('hidden');
       document.getElementById('app').classList.remove('hidden');
@@ -1545,7 +1582,7 @@
 
     window.logout = function() {
       notifyTyping(false);
-      markingReadIds.clear();
+      resetReadCursorsCache();
       const uid = currentUserId;
       saveLastChat();
       if (uid && usersMap[uid]) {
@@ -1832,8 +1869,8 @@
         const isRead = isOut ? isMessageRead(msg, chat) : false;
         const receiptHtml = (isOut && settings.showReadReceipts)
           ? (isRead
-              ? '<span title="Прочитано" class="font-bold text-white">✓✓</span>'
-              : '<span title="Отправлено" class="opacity-70">✓</span>')
+              ? '<span title="Прочитано" class="hg-sig hg-sig-read"></span>'
+              : '<span title="Отправлено" class="hg-sig hg-sig-sent"></span>')
           : '';
         const metaRow = (settings.showTimestamps || receiptHtml) ? `
           <div class="flex items-center justify-end gap-1 mt-1 text-[10px] ${isOut ? 'text-white/75' : 'text-slate-400'}">
@@ -2337,7 +2374,7 @@
               ${switchRow('sendOnEnter', 'Отправлять по Enter', 'Если выключено — отправка по Ctrl+Enter, а Enter делает перенос строки')}
               ${switchRow('autoEmoticons', 'Автозамена смайлов', 'Превращает :) в 😊, :( в 😢, <3 в ❤️, :fire: в 🔥 при отправке')}
               ${switchRow('showTimestamps', 'Показывать время сообщений', 'Отображает время отправки в пузырях и списке чатов')}
-              ${switchRow('showReadReceipts', 'Галочки прочтения (✓✓)', 'Показывать индикатор доставки на исходящих сообщениях')}
+              ${switchRow('showReadReceipts', 'Сигнальная чёрточка прочтения', 'Точка (·) растягивается в полоску (—), когда собеседник прочитал сообщение')}
               ${switchRow('showGroupAvatars', 'Аватары в групповых чатах', 'Показывать мини-аватары отправителей рядом с сообщениями')}
               ${switchRow('autoFocusInput', 'Автофокус поля ввода', 'Сразу ставить курсор в поле текста при открытии чата')}
             </div>
@@ -2799,6 +2836,7 @@
     window.addEventListener('beforeunload', () => notifyTyping(false));
     document.addEventListener('visibilitychange', () => { if (!document.hidden) markActiveChatAsRead(); });
     window.addEventListener('focus', () => markActiveChatAsRead());
+    document.getElementById('chatArea').addEventListener('pointerdown', () => markActiveChatAsRead());
 
     // Автообновление статуса, чтобы "печатает..." исчезало ровно по таймауту
     setInterval(() => {
