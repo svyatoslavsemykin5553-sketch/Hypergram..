@@ -2684,10 +2684,10 @@
       if (!chat || !currentUserId) return;
 
       const meta = getChatMeta(chat);
-      const canDeleteAll = !isSystemChat(chat) && (isChatOwner(chat) || isChatAdmin(chat));
+      const isManager = !isSystemChat(chat) && (isChatOwner(chat) || isChatAdmin(chat));
       const canLeave = !isSystemChat(chat) && chat.type !== 'dm' && isChatMember(chat) && !isChatOwner(chat);
 
-      if (!canDeleteAll && !canLeave) {
+      if (!isManager && !canLeave) {
         await hideChatForMe(chatId);
         return;
       }
@@ -2696,33 +2696,19 @@
       const descEl = document.getElementById('confirmChatDesc');
       const actionsEl = document.getElementById('confirmChatActions');
 
-      titleEl.textContent = `Удалить «${meta.title}»?`;
-      if (canDeleteAll) {
-        descEl.textContent = 'Выберите, удалить чат только из вашего списка чатов или полностью для всех участников.';
-      } else {
-        descEl.textContent = chat.type === 'channel'
-          ? 'Вы можете убрать канал только из вашего списка или отписаться от него.'
-          : 'Вы можете убрать группу только из вашего списка или выйти из неё.';
-      }
+      titleEl.textContent = `Удалить «${meta.title}» из списка?`;
+      descEl.textContent = 'Чат будет удалён только из вашего списка чатов. У остальных участников он останется без изменений.';
 
       let btns = `
         <button type="button" onclick="confirmActionHideOnly('${chatId}')" class="w-full py-2.5 px-4 rounded-xl hg-accent-bg text-white text-xs font-bold transition">
-          Удалить только из моего списка
+          Удалить из моего списка
         </button>
       `;
 
       if (canLeave) {
         btns += `
           <button type="button" onclick="confirmActionLeaveAndHide('${chatId}')" class="w-full py-2.5 px-4 rounded-xl bg-red-500/15 hover:bg-red-500/25 text-red-500 text-xs font-bold transition">
-            ${chat.type === 'channel' ? 'Отписаться и удалить из списка' : 'Выйти из группы и удалить'}
-          </button>
-        `;
-      }
-
-      if (canDeleteAll) {
-        btns += `
-          <button type="button" onclick="confirmActionDeleteForAll('${chatId}')" class="w-full py-2.5 px-4 rounded-xl bg-red-500/15 hover:bg-red-500/25 text-red-500 text-xs font-bold transition">
-            Удалить для всех участников
+            ${chat.type === 'channel' ? 'Отписаться и убрать из списка' : 'Выйти из группы и убрать'}
           </button>
         `;
       }
