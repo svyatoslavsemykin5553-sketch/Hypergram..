@@ -14,10 +14,7 @@
     tailwind.config = {
       darkMode: 'class',
       theme: { extend: {
-        fontFamily: {
-          sans: ['Instrument Sans', 'system-ui', 'sans-serif'],
-          display: ['Bricolage Grotesque', 'Instrument Sans', 'sans-serif']
-        },
+        fontFamily: { sans: ['Instrument Sans', 'system-ui', 'sans-serif'], display: ['Bricolage Grotesque', 'Instrument Sans', 'sans-serif'] },
         borderRadius: { md: '2px', lg: '3px', xl: '4px', '2xl': '8px', '3xl': '10px' },
         boxShadow: { sm: 'none', DEFAULT: 'none', md: 'none', lg: 'none', xl: 'none', '2xl': '4px 4px 0 rgba(0,0,0,.22)' },
         colors: {
@@ -65,7 +62,7 @@
     .hg-bubble { border-radius: var(--hg-bubble-radius) !important; }
     .hg-msg-text { font-size: var(--hg-msg-font) !important; }
 
-    /* Плоские обои: 4 варианта (блокнот, клетка, точки, чистый фон) */
+    /* Плоские обои: 4 варианта (линии, клетка, точки, чистый фон) */
     .chat-wallpaper-dark { background-color: #151412; }
     .chat-wallpaper-light { background-color: #e9e5da; }
 
@@ -109,9 +106,6 @@
       border-radius: 2px; background: #faf7f0; transition: transform 0.15s;
     }
     .hg-switch[aria-checked="true"]::after { transform: translateX(18px); }
-
-    /* Стилизация ползунков под акцентный цвет */
-    .hg-range { accent-color: var(--hg-accent); }
   </style>
 </head>
 
@@ -198,6 +192,11 @@
 
       <div id="syncStatusBadge" class="text-center text-[11px] text-slate-400 dark:text-[#8d887c]">
         Подключение к серверу...
+      </div>
+      <div id="storageWarning" class="hidden p-3 border border-amber-500/50 text-amber-600 dark:text-amber-500 text-[11px] leading-snug">
+        Эта страница открыта в ограниченном окне (предпросмотр или встроенный фрейм): браузер запрещает ей сохранять данные,
+        поэтому вход не запоминается после обновления. Открой файл напрямую в браузере (двойной клик по index.html)
+        или размести его на бесплатном хостинге.
       </div>
     </div>
   </div>
@@ -474,12 +473,11 @@
   <div id="toastContainer" class="fixed top-4 right-4 z-[60] flex flex-col gap-2 pointer-events-none max-w-xs w-full"></div>
 
   <!-- =========================================================
-       ЛОГИКА FIREBASE FIRESTORE + НАСТРОЙКИ + КАСТОМНЫЕ АВАТАРКИ
+       ЛОГИКА FIREBASE FIRESTORE + РЕЗЕРВНЫЙ РЕЖИМ + НАСТРОЙКИ
   ========================================================== -->
   <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    let initializeApp, getAuth, signInAnonymously, signInWithCustomToken;
+    let getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, collection, onSnapshot, query, orderBy, limit;
 
     const AVATAR_GRADIENTS = [
       'from-sky-500 to-indigo-600',
@@ -544,11 +542,87 @@
     let db = null;
     let auth = null;
     let appId = typeof __app_id !== 'undefined' ? __app_id : 'hypergram-default';
+
+    // =========================================================
+    // ОБЩАЯ БАЗА ДЛЯ ВСЕХ ПОЛЬЗОВАТЕЛЕЙ (Firebase hypergram-5f5ee)
+    // =========================================================
+    const FIREBASE_CONFIG = {
+      apiKey: 'AIzaSyBIKMAfnM-9Mt23btqTh0pxIi5o63w-P_Y',
+      authDomain: 'hypergram-5f5ee.firebaseapp.com',
+      projectId: 'hypergram-5f5ee',
+      storageBucket: 'hypergram-5f5ee.firebasestorage.app',
+      messagingSenderId: '587088350954',
+      appId: '1:587088350954:web:ddc1e420ad995858695193'
+    };
+
+    // =========================================================
+    // ПАРОЛИ: в базе хранится только соленый хеш, а не сам пароль
+    // =========================================================
+    const ADMIN_SALT = 'hypergram-admin';
+    const ADMIN_HASH = '807bf9b0444fba2506169bbd8185aab79066bd33275218725fbc2d7f78557c61';
+    const HASH_ROUNDS = 5000;
+    const MESSAGES_LIMIT = 300;
+    const textEnc = new TextEncoder();
+
+    function sha256Js(data) {
+      const K = [], H = [];
+      for (let c = 2, n = 0; n < 64; c++) {
+        let prime = true;
+        for (let d = 2; d * d <= c; d++) if (c % d === 0) { prime = false; break; }
+        if (!prime) continue;
+        if (n < 8) H[n] = (Math.pow(c, 1 / 2) % 1) * 4294967296 | 0;
+        K[n++] = (Math.pow(c, 1 / 3) % 1) * 4294967296 | 0;
+      }
+      const len = data.length, total = (((len + 9 + 63) >> 6) << 6);
+      const buf = new Uint8Array(total);
+      buf.set(data); buf[len] = 0x80;
+      const dv = new DataView(buf.buffer);
+      dv.setUint32(total - 8, Math.floor(len * 8 / 4294967296));
+      dv.setUint32(total - 4, (len * 8) >>> 0);
+      const w = new Array(64), rr = (x, n) => (x >>> n) | (x << (32 - n));
+      for (let off = 0; off < total; off += 64) {
+        for (let i = 0; i < 16; i++) w[i] = dv.getUint32(off + i * 4);
+        for (let i = 16; i < 64; i++) {
+          const s0 = rr(w[i-15], 7) ^ rr(w[i-15], 18) ^ (w[i-15] >>> 3);
+          const s1 = rr(w[i-2], 17) ^ rr(w[i-2], 19) ^ (w[i-2] >>> 10);
+          w[i] = (w[i-16] + s0 + w[i-7] + s1) | 0;
+        }
+        let [a, b, c, d, e, f, g, h] = H;
+        for (let i = 0; i < 64; i++) {
+          const t1 = (h + (rr(e, 6) ^ rr(e, 11) ^ rr(e, 25)) + ((e & f) ^ (~e & g)) + K[i] + w[i]) | 0;
+          const t2 = ((rr(a, 2) ^ rr(a, 13) ^ rr(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) | 0;
+          h = g; g = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0;
+        }
+        const v = [a, b, c, d, e, f, g, h];
+        for (let i = 0; i < 8; i++) H[i] = (H[i] + v[i]) | 0;
+      }
+      const out = new Uint8Array(32), odv = new DataView(out.buffer);
+      H.forEach((x, i) => odv.setUint32(i * 4, x >>> 0));
+      return out;
+    }
+    async function sha256(bytes) {
+      try {
+        if (window.crypto && window.crypto.subtle) return new Uint8Array(await window.crypto.subtle.digest('SHA-256', bytes));
+      } catch (e) {}
+      return sha256Js(bytes);
+    }
+    async function hashPassword(pw, salt) {
+      const s = textEnc.encode(salt);
+      let h = await sha256(textEnc.encode(salt + ':' + pw));
+      for (let i = 0; i < HASH_ROUNDS; i++) {
+        const m = new Uint8Array(h.length + s.length);
+        m.set(h); m.set(s, h.length);
+        h = await sha256(m);
+      }
+      return Array.from(h, x => x.toString(16).padStart(2, '0')).join('');
+    }
+    function newSalt() {
+      const a = new Uint8Array(12);
+      (window.crypto || {}).getRandomValues ? window.crypto.getRandomValues(a) : a.forEach((_, i) => a[i] = Math.random() * 256);
+      return Array.from(a, x => x.toString(16).padStart(2, '0')).join('');
+    }
+
     let useCloud = false;
-    let cloudUid = null;
-    let cloudSession = null;
-    let sessionRestoreDone = false;
-    let seedDone = false;
 
     let usersMap = {};
     let chatsMap = {};
@@ -556,7 +630,6 @@
 
     let currentUserId = null;
     let activeChatId = 'global_chat';
-    let lastChatByUser = {};
     let authMode = 'login';
     let replyToMsgId = null;
     let ctxMsgId = null;
@@ -567,39 +640,98 @@
     let pinBuffer = '';
     let lastKnownMsgCount = 0;
 
-    // Текущие настройки (в памяти + синхронизация с облаком)
-    let settings = { ...DEFAULT_SETTINGS, blockedUsers: [] };
-
     // =========================================================
-    // ОБЛАЧНЫЕ ССЫЛКИ ДЛЯ СЕССИИ И НАСТРОЕК
+    // НАДЁЖНОЕ ХРАНИЛИЩЕ
     // =========================================================
-    function sessionDocRef() {
-      return doc(db, 'artifacts', appId, 'public', 'data', 'hg_sessions', cloudUid);
-    }
-
-    function prefsDocRef() {
-      return doc(db, 'artifacts', appId, 'users', cloudUid, 'hg_prefs', 'settings');
-    }
-
-    async function loadCloudPrefs() {
-      if (!useCloud || !db || !auth?.currentUser || !cloudUid) return;
+    const WN_PREFIX = 'HGSTORE:';
+    function wnRead() {
       try {
-        const snap = await getDoc(prefsDocRef());
-        if (snap.exists()) {
-          const data = snap.data();
-          settings = { ...DEFAULT_SETTINGS, ...data };
-          if (!Array.isArray(settings.blockedUsers)) settings.blockedUsers = [];
-          applySettings();
-        }
-      } catch (e) {
-        console.warn('Не удалось загрузить настройки из облака:', e);
-      }
+        if (window.name && window.name.startsWith(WN_PREFIX)) return JSON.parse(window.name.slice(WN_PREFIX.length)) || {};
+      } catch (e) {}
+      return {};
+    }
+    function wnWrite(obj) {
+      try { window.name = WN_PREFIX + JSON.stringify(obj); } catch (e) {}
     }
 
+    let persistentStorageOk = true;
+
+    function probeStorage() {
+      let ok = false;
+      try {
+        window.localStorage.setItem('__hg_probe', '1');
+        ok = window.localStorage.getItem('__hg_probe') === '1';
+        window.localStorage.removeItem('__hg_probe');
+      } catch (e) { ok = false; }
+      persistentStorageOk = ok;
+      const w = document.getElementById('storageWarning');
+      if (w) w.classList.toggle('hidden', ok);
+      if (!ok) console.warn('[hypergram] localStorage заблокирован: вход не сможет запоминаться между обновлениями страницы');
+      return ok;
+    }
+
+    const store = {
+      get(key) {
+        try { const v = window.localStorage.getItem(key); if (v !== null && v !== undefined) return v; } catch (e) {}
+        try { const v = window.sessionStorage.getItem(key); if (v !== null && v !== undefined) return v; } catch (e) {}
+        const wn = wnRead();
+        return Object.prototype.hasOwnProperty.call(wn, key) ? wn[key] : null;
+      },
+      set(key, value) {
+        value = String(value);
+        let ok = false;
+        try { window.localStorage.setItem(key, value); ok = true; } catch (e) {}
+        try { window.sessionStorage.setItem(key, value); ok = true; } catch (e) {}
+        if (!ok) persistentStorageOk = false;
+        if (key !== FALLBACK_KEY) {
+          const wn = wnRead(); wn[key] = value; wnWrite(wn);
+        }
+      },
+      remove(key) {
+        try { window.localStorage.removeItem(key); } catch (e) {}
+        try { window.sessionStorage.removeItem(key); } catch (e) {}
+        const wn = wnRead(); delete wn[key]; wnWrite(wn);
+      }
+    };
+
+    const FALLBACK_KEY = 'hypergram_fallback_db_v2';
+    const SESSION_KEY = 'hypergram_session_v1';
+    const LAST_LOGIN_KEY = 'hypergram_last_login_v1';
+    const LAST_CHAT_KEY = 'hypergram_last_chat_v1';
+    const SETTINGS_KEY = 'hypergram_settings_v1';
+
+    let sessionRestoreDone = false;
+    let cloudSession = null;
+    let cloudUid = null;
+
+    function readJson(key, fallback) {
+      try {
+        const raw = store.get(key);
+        return raw ? JSON.parse(raw) : fallback;
+      } catch (e) { return fallback; }
+    }
+    function writeJson(key, value) {
+      try { store.set(key, JSON.stringify(value)); } catch (e) {}
+    }
+    function removeKey(key) {
+      try { store.remove(key); } catch (e) {}
+    }
+
+    // Загрузка настроек
+    let settings = { ...DEFAULT_SETTINGS, ...readJson(SETTINGS_KEY, {}) };
+    if (!Array.isArray(settings.blockedUsers)) settings.blockedUsers = [];
+
+    let settingsSyncTimer = null;
     function saveSettings() {
+      writeJson(SETTINGS_KEY, settings);
       applySettings();
-      if (useCloud && db && auth?.currentUser && cloudUid) {
-        setDoc(prefsDocRef(), settings).catch(e => console.warn('Не удалось сохранить настройки в облаке:', e));
+      if (currentUserId && usersMap[currentUserId]) {
+        clearTimeout(settingsSyncTimer);
+        settingsSyncTimer = setTimeout(() => {
+          if (currentUserId && usersMap[currentUserId]) {
+            dbUpdate('hg_users', currentUserId, { hgSettings: { ...settings } }).catch(() => {});
+          }
+        }, 700);
       }
     }
 
@@ -692,58 +824,75 @@
       } catch (e) {}
     }
 
-    // =========================================================
-    // УПРАВЛЕНИЕ СЕССИЕЙ
-    // =========================================================
+    function sessionDocRef() {
+      return doc(db, 'artifacts', appId, 'public', 'data', 'hg_sessions', cloudUid);
+    }
+
     function saveSession(uid) {
-      const data = { userId: uid, lastChatId: activeChatId, loginAt: Date.now() };
-      cloudSession = data;
-      if (useCloud && db && auth?.currentUser && cloudUid) {
+      const data = { userId: uid, loginAt: Date.now() };
+      writeJson(SESSION_KEY, data);
+      store.set(LAST_LOGIN_KEY, uid);
+      if (useCloud && db && cloudUid) {
+        cloudSession = data;
         setDoc(sessionDocRef(), data).catch(e => console.warn('Не удалось сохранить сессию в облаке:', e));
       }
     }
-
     function clearSession() {
+      removeKey(SESSION_KEY);
       cloudSession = null;
-      if (useCloud && db && auth?.currentUser && cloudUid) {
+      if (useCloud && db && cloudUid) {
         deleteDoc(sessionDocRef()).catch(e => console.warn('Не удалось удалить сессию в облаке:', e));
       }
     }
-
     function saveLastChat() {
       if (!currentUserId || !activeChatId) return;
-      lastChatByUser[currentUserId] = activeChatId;
-      if (useCloud && db && auth?.currentUser && cloudUid) {
-        setDoc(sessionDocRef(), { userId: currentUserId, lastChatId: activeChatId, loginAt: Date.now() }).catch(() => {});
-      }
+      const map = readJson(LAST_CHAT_KEY, {});
+      map[currentUserId] = activeChatId;
+      writeJson(LAST_CHAT_KEY, map);
     }
-
     function getLastChat(uid) {
-      const id = lastChatByUser[uid] || (cloudSession?.userId === uid ? cloudSession.lastChatId : null);
+      const id = readJson(LAST_CHAT_KEY, {})[uid];
       return id && chatsMap[id] ? id : 'global_chat';
+    }
+    function prefillLastLogin() {
+      const last = store.get(LAST_LOGIN_KEY);
+      if (last) document.getElementById('authUsername').value = last;
     }
 
     function tryRestoreSession(authoritative = true) {
       if (sessionRestoreDone || currentUserId) return;
-      const session = cloudSession;
-      if (!session || !session.userId) {
-        if (authoritative) sessionRestoreDone = true;
-        return;
-      }
+      const session = cloudSession || readJson(SESSION_KEY, null);
+      if (!session || !session.userId) { sessionRestoreDone = true; return; }
       if (usersMap[session.userId]) {
         sessionRestoreDone = true;
         loginSuccess(session.userId, true);
-      } else if (authoritative) {
+      } else if (authoritative && Object.keys(usersMap).length > 0) {
         sessionRestoreDone = true;
         clearSession();
       }
     }
 
-    // =========================================================
-    // ОПЕРАЦИИ С БАЗОЙ ДАННЫХ (FIRESTORE / ПАМЯТЬ)
-    // =========================================================
+    function saveFallback() {
+      if (useCloud) return;
+      try {
+        store.set(FALLBACK_KEY, JSON.stringify({ usersMap, chatsMap, messagesList }));
+      } catch (e) {}
+    }
+
+    function loadFallback() {
+      try {
+        const raw = store.get(FALLBACK_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          usersMap = parsed.usersMap || {};
+          chatsMap = parsed.chatsMap || {};
+          messagesList = parsed.messagesList || [];
+        }
+      } catch (e) {}
+    }
+
     async function dbSet(colName, docId, data) {
-      if (useCloud && db && auth?.currentUser) {
+      if (useCloud && db) {
         await setDoc(doc(db, 'artifacts', appId, 'public', 'data', colName, docId), data);
       } else {
         if (colName === 'hg_users') usersMap[docId] = data;
@@ -753,12 +902,13 @@
           if (idx > -1) messagesList[idx] = data;
           else messagesList.push(data);
         }
+        saveFallback();
         renderIfLoggedIn();
       }
     }
 
     async function dbUpdate(colName, docId, patch) {
-      if (useCloud && db && auth?.currentUser) {
+      if (useCloud && db) {
         await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', colName, docId), patch);
       } else {
         if (colName === 'hg_users' && usersMap[docId]) Object.assign(usersMap[docId], patch);
@@ -767,181 +917,203 @@
           const m = messagesList.find(x => x.id === docId);
           if (m) Object.assign(m, patch);
         }
+        saveFallback();
         renderIfLoggedIn();
       }
     }
 
     async function dbDelete(colName, docId) {
-      if (useCloud && db && auth?.currentUser) {
+      if (useCloud && db) {
         await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', colName, docId));
       } else {
         if (colName === 'hg_messages') messagesList = messagesList.filter(m => m.id !== docId);
+        saveFallback();
         renderIfLoggedIn();
       }
     }
 
-    async function ensureSeedData() {
-      if (seedDone) return;
-      seedDone = true;
-      try {
-        if (!usersMap['hypergram']) {
-          await dbSet('hg_users', 'hypergram', {
-            id: 'hypergram',
-            username: '@Hypergram',
-            displayName: 'Hypergram',
-            password: 'hyper2026',
-            role: 'admin',
-            avatarColor: 'from-sky-500 via-blue-500 to-indigo-600',
-            initials: 'HG',
-            avatarUrl: '',
-            bio: 'Официальный аккаунт команды HYPERGRAM.',
-            status: 'online',
-            badges: { verified: true, premium: true, staff: true, scam: false },
-            customTitle: 'Главный администратор',
-            banned: false,
-            createdAt: Date.now()
-          });
-        }
+    async function docExists(col, id) {
+      if (useCloud && db) {
+        const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id));
+        return snap.exists();
+      }
+      if (col === 'hg_users') return !!usersMap[id];
+      if (col === 'hg_chats') return !!chatsMap[id];
+      return messagesList.some(m => m.id === id);
+    }
+    async function createIfMissing(col, id, data) {
+      if (await docExists(col, id)) return false;
+      await dbSet(col, id, data);
+      return true;
+    }
 
-        if (!chatsMap['global_chat']) {
-          await dbSet('hg_chats', 'global_chat', {
-            id: 'global_chat',
-            type: 'group',
-            title: 'HYPERGRAM Общий чат',
-            description: 'Главный глобальный чат всех пользователей HYPERGRAM',
-            avatarColor: 'from-indigo-500 to-purple-600',
-            initials: '🌐',
-            badges: { verified: true, premium: false, staff: false, scam: false },
-            createdAt: Date.now()
-          });
-        }
+    let seedPromise = null;
+    function ensureSeedData() {
+      if (!seedPromise) seedPromise = runSeed().catch(e => { console.warn('Seed error:', e); seedPromise = null; });
+      return seedPromise;
+    }
+    async function runSeed() {
+      await createIfMissing('hg_users', 'hypergram', {
+        id: 'hypergram',
+        username: '@Hypergram',
+        displayName: 'Hypergram',
+        passHash: ADMIN_HASH,
+        salt: ADMIN_SALT,
+        role: 'admin',
+        avatarColor: 'from-sky-500 via-blue-500 to-indigo-600',
+        initials: 'HG',
+        avatarUrl: '',
+        bio: 'Официальный аккаунт команды HYPERGRAM.',
+        status: 'online',
+        badges: { verified: true, premium: true, staff: true, scam: false },
+        customTitle: 'Главный администратор',
+        banned: false,
+        createdAt: Date.now()
+      });
 
-        if (!chatsMap['news_channel']) {
-          await dbSet('hg_chats', 'news_channel', {
-            id: 'news_channel',
-            type: 'channel',
-            title: 'Новости HYPERGRAM',
-            description: 'Официальный канал обновлений. Писать может только @Hypergram.',
-            avatarColor: 'from-sky-500 to-blue-600',
-            initials: '📢',
-            badges: { verified: true, premium: true, staff: true, scam: false },
-            createdAt: Date.now()
-          });
-        }
+      await createIfMissing('hg_chats', 'global_chat', {
+        id: 'global_chat',
+        type: 'group',
+        title: 'HYPERGRAM Общий чат',
+        description: 'Главный глобальный чат всех пользователей HYPERGRAM',
+        avatarColor: 'from-indigo-500 to-purple-600',
+        initials: '🌐',
+        badges: { verified: true, premium: false, staff: false, scam: false },
+        createdAt: Date.now()
+      });
 
-        const hasNews = messagesList.some(m => m.chatId === 'news_channel');
-        if (!hasNews) {
-          const msgId = 'welcome_news_1';
-          await dbSet('hg_messages', msgId, {
-            id: msgId,
-            chatId: 'news_channel',
-            senderId: 'hypergram',
-            text: 'Добро пожаловать в HYPERGRAM! Общайтесь в реальном времени, находите друзей по @username, загружайте свои аватарки и настраивайте мессенджер под себя.',
-            replyToId: null,
-            reactions: { '🔥': ['hypergram'] },
-            timestamp: Date.now(),
-            readBy: ['hypergram']
-          });
-        }
-      } catch (err) {
-        seedDone = false;
-        console.warn('Ошибка инициализации базовых данных:', err);
+      const newsCreated = await createIfMissing('hg_chats', 'news_channel', {
+        id: 'news_channel',
+        type: 'channel',
+        title: 'Новости HYPERGRAM',
+        description: 'Официальный канал обновлений. Писать может только @Hypergram.',
+        avatarColor: 'from-sky-500 to-blue-600',
+        initials: '📢',
+        badges: { verified: true, premium: true, staff: true, scam: false },
+        createdAt: Date.now()
+      });
+
+      if (newsCreated) {
+        await createIfMissing('hg_messages', 'welcome_news_1', {
+          id: 'welcome_news_1',
+          chatId: 'news_channel',
+          senderId: 'hypergram',
+          text: 'Добро пожаловать в HYPERGRAM! Общайтесь в реальном времени, находите друзей по @username и настраивайте мессенджер под себя.',
+          replyToId: null,
+          reactions: { '🔥': ['hypergram'] },
+          timestamp: Date.now(),
+          readBy: ['hypergram']
+        });
       }
     }
 
-    // =========================================================
-    // ПОДКЛЮЧЕНИЕ К FIREBASE FIRESTORE
-    // =========================================================
+    let connectError = null;
+    function reportSyncError(where, err) {
+      console.error(where + ' sync error:', err);
+      const el = document.getElementById('syncStatusBadge');
+      if (el) el.textContent = '🔴 Firestore: ' + (err.code || err.message || err) + ' — проверь правила базы (Rules)';
+    }
+
     async function initBackend() {
       const statusEl = document.getElementById('syncStatusBadge');
       try {
+        let fbCfg = null, fbToken = null;
         if (typeof __firebase_config !== 'undefined' && __firebase_config) {
-          const firebaseConfig = JSON.parse(__firebase_config);
-          const app = initializeApp(firebaseConfig);
+          fbCfg = JSON.parse(__firebase_config);
+          if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) fbToken = __initial_auth_token;
+        } else if (FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.projectId) {
+          fbCfg = FIREBASE_CONFIG;
+        }
+        if (fbCfg) {
+          const FB = 'https://www.gstatic.com/firebasejs/11.6.1/';
+          const [appMod, authMod, fsMod] = await Promise.all([
+            import(FB + 'firebase-app.js'),
+            import(FB + 'firebase-auth.js'),
+            import(FB + 'firebase-firestore.js')
+          ]);
+          ({ initializeApp } = appMod);
+          ({ getAuth, signInAnonymously, signInWithCustomToken } = authMod);
+          ({ getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, collection, onSnapshot, query, orderBy, limit } = fsMod);
+
+          const app = initializeApp(fbCfg);
           auth = getAuth(app);
           db = getFirestore(app);
 
-          // Сначала аутентификация (приоритет кастомному токену)
-          if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-            await signInWithCustomToken(auth, __initial_auth_token);
-          } else {
+          if (auth.authStateReady) await auth.authStateReady();
+          if (fbToken) {
+            await signInWithCustomToken(auth, fbToken);
+          } else if (!auth.currentUser) {
             await signInAnonymously(auth);
           }
 
-          if (!auth.currentUser) throw new Error('Firebase auth failed');
+          if (!auth.currentUser) throw new Error('Auth failed');
           useCloud = true;
           cloudUid = auth.currentUser.uid;
 
-          // Загружаем облачную сессию и настройки пользователя
           try {
             const sessSnap = await getDoc(sessionDocRef());
             cloudSession = sessSnap.exists() ? sessSnap.data() : null;
           } catch (e) {
+            console.warn('Сессия в облаке недоступна:', e);
             cloudSession = null;
           }
-          await loadCloudPrefs();
-
           statusEl.textContent = '🟢 Подключено к облаку HYPERGRAM (Реальное время)';
+          if (auth.currentUser.isAnonymous && !persistentStorageOk) {
+            statusEl.textContent += ' ⚠️ Анонимный вход меняется при каждой загрузке — автовход может не сработать';
+          }
 
-          // Подписки на коллекции (только простые collection(), сортировка в JS)
-          onSnapshot(
-            collection(db, 'artifacts', appId, 'public', 'data', 'hg_users'),
-            (snap) => {
-              const next = {};
-              snap.forEach(d => { next[d.id] = d.data(); });
-              usersMap = next;
-              if (!snap.metadata.fromCache || snap.size > 0) ensureSeedData();
-              tryRestoreSession(!snap.metadata.fromCache);
-              renderIfLoggedIn();
-            },
-            (err) => console.error('Users sync error:', err)
-          );
+          onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'hg_users'), (snap) => {
+            const next = {};
+            snap.forEach(d => { next[d.id] = d.data(); });
+            usersMap = next;
+            tryRestoreSession(!snap.metadata.fromCache);
+            renderIfLoggedIn();
+          }, (err) => reportSyncError('Users', err));
 
-          onSnapshot(
-            collection(db, 'artifacts', appId, 'public', 'data', 'hg_chats'),
-            (snap) => {
-              const next = {};
-              snap.forEach(d => { next[d.id] = d.data(); });
-              chatsMap = next;
-              renderIfLoggedIn();
-            },
-            (err) => console.error('Chats sync error:', err)
-          );
+          onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'hg_chats'), (snap) => {
+            const next = {};
+            snap.forEach(d => { next[d.id] = d.data(); });
+            chatsMap = next;
+            renderIfLoggedIn();
+          }, (err) => reportSyncError('Chats', err));
 
-          onSnapshot(
-            collection(db, 'artifacts', appId, 'public', 'data', 'hg_messages'),
-            (snap) => {
-              const next = [];
-              snap.forEach(d => { next.push(d.data()); });
-              next.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-              const hadMore = lastKnownMsgCount > 0 && next.length > lastKnownMsgCount;
-              const latest = next[next.length - 1];
-              messagesList = next;
-              lastKnownMsgCount = next.length;
-              if (hadMore && latest && latest.senderId !== currentUserId && !settings.blockedUsers.includes(latest.senderId)) {
-                playSound('receive');
-              }
-              renderIfLoggedIn();
-            },
-            (err) => console.error('Messages sync error:', err)
-          );
+          onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', 'hg_messages'), orderBy('timestamp', 'desc'), limit(MESSAGES_LIMIT)), (snap) => {
+            const next = [];
+            snap.forEach(d => { next.push(d.data()); });
+            next.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+            const hadMore = lastKnownMsgCount > 0 && next.length > lastKnownMsgCount;
+            const latest = next[next.length - 1];
+            messagesList = next;
+            lastKnownMsgCount = next.length;
+            if (hadMore && latest && latest.senderId !== currentUserId && !settings.blockedUsers.includes(latest.senderId)) {
+              playSound('receive');
+            }
+            renderIfLoggedIn();
+          }, (err) => reportSyncError('Messages', err));
 
+          await ensureSeedData();
           return;
         }
       } catch (err) {
-        console.warn('Облачное подключение недоступно, включен автономный режим:', err);
+        console.warn('Firebase недоступен, включен локальный режим:', err);
+        connectError = err;
       }
 
-      // Автономный режим в памяти (если конфиг сервера не передан окружением)
       useCloud = false;
+      loadFallback();
       await ensureSeedData();
       lastKnownMsgCount = messagesList.length;
-      statusEl.textContent = '🟡 Автономный режим (данные текущей сессии)';
+      statusEl.textContent = connectError
+        ? '🔴 Не удалось подключиться к Firebase (' + (connectError.code || connectError.message || connectError) + ') — аккаунты сохраняются только в этом браузере'
+        : '🟡 Локальный режим (автосохранение в браузере)';
       tryRestoreSession(true);
+      if (!persistentStorageOk) {
+        statusEl.textContent += ' ⚠️ Хранилище браузера заблокировано — данные сохраняются только пока вкладка открыта';
+      }
     }
 
     // =========================================================
-    // УТИЛИТЫ, АВАТАРКИ И ЗНАЧКИ
+    // УТИЛИТЫ И ЗНАЧКИ
     // =========================================================
     function escapeHtml(str) {
       return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -967,6 +1139,7 @@
       const bg = hasImg ? 'bg-slate-800' : `bg-gradient-to-tr ${entity?.avatarColor || 'from-slate-500 to-slate-600'}`;
       return `<div ${extraAttrs} class="${sizeClasses} overflow-hidden ${bg} flex items-center justify-center font-bold text-white flex-shrink-0">${avatarContent(entity?.avatarUrl, entity?.initials)}</div>`;
     }
+
 
     function formatTime(ts) {
       if (!ts) return '';
@@ -1126,7 +1299,17 @@
 
       if (authMode === 'login') {
         const user = usersMap[uid];
-        if (!user || user.password !== password) {
+        let okPass = false;
+        if (user && user.passHash) {
+          okPass = (await hashPassword(password, user.salt || '')) === user.passHash;
+        } else if (user && user.password) {
+          okPass = user.password === password;
+          if (okPass) {
+            const salt = newSalt();
+            dbUpdate('hg_users', uid, { passHash: await hashPassword(password, salt), salt, password: '' }).catch(() => {});
+          }
+        }
+        if (!okPass) {
           errEl.textContent = 'Неверный логин или пароль.';
           errEl.classList.remove('hidden');
           return;
@@ -1143,11 +1326,15 @@
           errEl.classList.remove('hidden');
           return;
         }
-        if (usersMap[uid]) {
+        let taken = !!usersMap[uid];
+        try { if (!taken) taken = await docExists('hg_users', uid); } catch (err) { console.warn(err); }
+        if (taken) {
           errEl.textContent = 'Этот логин уже занят.';
           errEl.classList.remove('hidden');
           return;
         }
+        const salt = newSalt();
+        const passHash = await hashPassword(password, salt);
 
         const initials = displayName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || 'HG';
         const color = AVATAR_GRADIENTS[Math.floor(Math.random() * AVATAR_GRADIENTS.length)];
@@ -1156,7 +1343,8 @@
           id: uid,
           username: '@' + uid,
           displayName: displayName,
-          password: password,
+          passHash: passHash,
+          salt: salt,
           role: 'user',
           avatarColor: color,
           initials: initials,
@@ -1184,8 +1372,13 @@
         dbUpdate('hg_users', uid, { lastLoginAt: Date.now() }).catch(() => {});
       }
 
+      if (usersMap[uid]?.hgSettings) {
+        settings = { ...DEFAULT_SETTINGS, ...settings, ...usersMap[uid].hgSettings };
+        if (!Array.isArray(settings.blockedUsers)) settings.blockedUsers = [];
+        writeJson(SETTINGS_KEY, settings);
+      }
       applySettings();
-      renderIfLoggedIn();
+      try { renderIfLoggedIn(); } catch (e) { console.warn('render after login:', e); }
 
       if (restored && settings.pinCode) {
         lockScreenNow();
@@ -1208,7 +1401,7 @@
       closeDrawer();
       document.getElementById('app').classList.add('hidden');
       document.getElementById('authScreen').classList.remove('hidden');
-      if (uid) document.getElementById('authUsername').value = uid;
+      prefillLastLogin();
       showToast('Вы вышли из аккаунта');
     };
 
@@ -1435,6 +1628,7 @@
         const isOut = msg.senderId === currentUserId && chat.type !== 'channel';
         const sender = usersMap[msg.senderId] || { displayName: 'Пользователь', initials: '?', avatarColor: 'from-slate-500 to-slate-600', badges: {} };
 
+        // Скрытие сообщений от пользователей в чёрном списке
         if (!isOut && settings.blockedUsers.includes(msg.senderId)) {
           return `
             <div id="msg_${msg.id}" class="flex justify-start">
@@ -1502,7 +1696,7 @@
     }
 
     // =========================================================
-    // ОТПРАВКА, РЕАКЦИИ, ОТВЕТЫ, КОПИРОВАНИЕ, УДАЛЕНИЕ
+    // ОТПРАВКА, РЕАКЦИИ, ОТВЕТЫ, УДАЛЕНИЕ
     // =========================================================
     window.sendMessage = async function() {
       const input = document.getElementById('messageInput');
@@ -1570,19 +1764,7 @@
       const msg = messagesList.find(m => m.id === ctxMsgId);
       document.getElementById('msgContextMenu').classList.add('hidden');
       if (!msg) return;
-      try {
-        const ta = document.createElement('textarea');
-        ta.value = msg.text;
-        ta.style.position = 'fixed';
-        ta.style.opacity = '0';
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
-        showToast('Текст скопирован');
-      } catch (err) {
-        showToast('Не удалось скопировать', 'error');
-      }
+      navigator.clipboard?.writeText(msg.text).then(() => showToast('Текст скопирован')).catch(() => showToast('Не удалось скопировать', 'error'));
     };
 
     window.toggleReaction = async function(msgId, emoji) {
@@ -1772,18 +1954,6 @@
       renderSettingsModal();
     };
 
-    // Плавное изменение ползунков без сброса фокуса
-    window.setRangeSetting = function(key, val, labelId, suffix) {
-      settings[key] = val;
-      const lbl = document.getElementById(labelId);
-      if (lbl) lbl.textContent = val + suffix;
-      if (key === 'fontSize') document.documentElement.style.setProperty('--hg-msg-font', `${val}px`);
-      if (key === 'bubbleRadius') document.documentElement.style.setProperty('--hg-bubble-radius', `${val}px`);
-      if (useCloud && db && auth?.currentUser && cloudUid) {
-        setDoc(prefsDocRef(), settings).catch(() => {});
-      }
-    };
-
     function switchRow(key, title, desc) {
       const checked = !!settings[key];
       return `
@@ -1902,7 +2072,7 @@
       if (settingsTab === 'appearance') {
         body.innerHTML = `
           <div class="space-y-5">
-            <!-- Живое превью чата -->
+            <!-- Превью чата -->
             <div class="p-4 rounded-2xl border border-slate-200 dark:border-[#36322e] ${settings.theme === 'dark' ? 'chat-wallpaper-dark' : 'chat-wallpaper-light'} wp-${settings.wallpaper} space-y-2">
               <div class="flex justify-start">
                 <div class="hg-bubble px-3 py-1.5 bg-white dark:bg-[#1e1c1a] text-slate-900 dark:text-slate-100 border border-slate-200/70 dark:border-[#2e2b28] max-w-[75%]">
@@ -1911,7 +2081,7 @@
               </div>
               <div class="flex justify-end">
                 <div class="hg-bubble hg-bubble-out px-3 py-1.5 max-w-[75%]">
-                  <div class="hg-msg-text">Выглядит отлично, настройки и аватарки работают мгновенно!</div>
+                  <div class="hg-msg-text">Выглядит отлично, настройки работают мгновенно!</div>
                 </div>
               </div>
             </div>
@@ -1962,17 +2132,17 @@
               <div class="p-3.5 rounded-2xl bg-slate-100/80 dark:bg-[#262421] border border-slate-200 dark:border-[#36322e]">
                 <div class="flex justify-between text-xs font-semibold mb-2">
                   <span>Размер шрифта сообщений</span>
-                  <span id="lblFontSize" class="hg-accent-text">${settings.fontSize} px</span>
+                  <span class="hg-accent-text">${settings.fontSize} px</span>
                 </div>
-                <input type="range" min="12" max="18" step="1" value="${settings.fontSize}" oninput="setRangeSetting('fontSize', Number(this.value), 'lblFontSize', ' px')" class="w-full hg-range" />
+                <input type="range" min="12" max="18" step="1" value="${settings.fontSize}" oninput="setSetting('fontSize', Number(this.value))" class="w-full accent-[#e2461f]" />
               </div>
 
               <div class="p-3.5 rounded-2xl bg-slate-100/80 dark:bg-[#262421] border border-slate-200 dark:border-[#36322e]">
                 <div class="flex justify-between text-xs font-semibold mb-2">
                   <span>Скругление пузырей</span>
-                  <span id="lblBubbleRadius" class="hg-accent-text">${settings.bubbleRadius} px</span>
+                  <span class="hg-accent-text">${settings.bubbleRadius} px</span>
                 </div>
-                <input type="range" min="0" max="16" step="2" value="${settings.bubbleRadius}" oninput="setRangeSetting('bubbleRadius', Number(this.value), 'lblBubbleRadius', ' px')" class="w-full hg-range" />
+                <input type="range" min="0" max="16" step="2" value="${settings.bubbleRadius}" oninput="setSetting('bubbleRadius', Number(this.value))" class="w-full accent-[#e2461f]" />
               </div>
             </div>
 
@@ -2025,9 +2195,9 @@
             <div class="p-4 rounded-2xl bg-slate-100/70 dark:bg-[#262421] border border-slate-200 dark:border-[#36322e] space-y-3">
               <div class="flex items-center justify-between text-xs font-semibold">
                 <span>Громкость звуков</span>
-                <span id="lblSoundVol" class="hg-accent-text">${settings.soundVolume}%</span>
+                <span class="hg-accent-text">${settings.soundVolume}%</span>
               </div>
-              <input type="range" min="0" max="100" step="5" value="${settings.soundVolume}" oninput="setRangeSetting('soundVolume', Number(this.value), 'lblSoundVol', '%')" class="w-full hg-range" />
+              <input type="range" min="0" max="100" step="5" value="${settings.soundVolume}" oninput="setSetting('soundVolume', Number(this.value))" class="w-full accent-[#e2461f]" />
               <div class="flex gap-2 pt-1">
                 <button onclick="testNotificationSound('send')" class="px-3.5 py-2 rounded-xl border border-slate-300 dark:border-[#36322e] hover:bg-slate-200/60 dark:hover:bg-[#2a2724] text-xs font-semibold transition">Проверить (отправка)</button>
                 <button onclick="testNotificationSound('receive')" class="px-3.5 py-2 rounded-xl border border-slate-300 dark:border-[#36322e] hover:bg-slate-200/60 dark:hover:bg-[#2a2724] text-xs font-semibold transition">Проверить (входящее)</button>
@@ -2118,7 +2288,7 @@
 
             <div class="p-4 rounded-2xl bg-slate-100/70 dark:bg-[#262421] border border-slate-200 dark:border-[#36322e] space-y-2.5">
               <div class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-[#8d887c]">Режим синхронизации</div>
-              <div class="text-sm font-semibold">${useCloud ? '🟢 Облако HYPERGRAM (Реальное время)' : '🟡 Автономный режим'}</div>
+              <div class="text-sm font-semibold">${useCloud ? '🟢 Облако Firebase Firestore (реальное время)' : '🟡 Локальное хранилище браузера'}</div>
               <div class="text-xs text-slate-500 dark:text-[#8d887c]">Приложение ID: <code class="px-1.5 py-0.5 rounded bg-black/10 dark:bg-white/10">${escapeHtml(appId)}</code></div>
             </div>
 
@@ -2157,7 +2327,6 @@
       await dbUpdate('hg_users', currentUserId, { avatarColor });
       showToast('Цвет аватара обновлён', 'success');
     };
-
     window.triggerAvatarUpload = function() {
       const inp = document.getElementById('avatarFileInput');
       if (inp) {
@@ -2189,7 +2358,7 @@
             canvas.height = size;
             const ctx = canvas.getContext('2d');
 
-            // Обрезка по центру в квадрат 256×256
+            // Обрезка по центру в квадрат
             const minSide = Math.min(img.width, img.height);
             const sx = (img.width - minSide) / 2;
             const sy = (img.height - minSide) / 2;
@@ -2216,13 +2385,18 @@
       showToast('Фото удалено, возвращены инициалы');
     };
 
+
     window.changeUserPassword = async function() {
       const u = getCurrentUser();
-      const oldP = document.getElementById('setOldPass').value.trim();
-      const newP = document.getElementById('setNewPass').value.trim();
-      if (oldP !== u.password) { showToast('Текущий пароль неверен', 'error'); return; }
+      const oldP = document.getElementById('setOldPass').value;
+      const newP = document.getElementById('setNewPass').value;
+      let ok = false;
+      if (u.passHash) ok = (await hashPassword(oldP, u.salt || '')) === u.passHash;
+      else if (u.password) ok = u.password === oldP;
+      if (!ok) { showToast('Текущий пароль неверен', 'error'); return; }
       if (newP.length < 4) { showToast('Новый пароль должен быть не короче 4 символов', 'error'); return; }
-      await dbUpdate('hg_users', currentUserId, { password: newP });
+      const salt = newSalt();
+      await dbUpdate('hg_users', currentUserId, { passHash: await hashPassword(newP, salt), salt, password: '' });
       document.getElementById('setOldPass').value = '';
       document.getElementById('setNewPass').value = '';
       showToast('Пароль успешно изменён', 'success');
@@ -2457,6 +2631,7 @@
     });
 
     document.addEventListener('keydown', (e) => {
+      // Ввод PIN с клавиатуры
       if (!document.getElementById('pinLockScreen').classList.contains('hidden')) {
         if (/^\d$/.test(e.key)) pinPress(e.key);
         else if (e.key === 'Backspace') pinBackspace();
@@ -2474,8 +2649,10 @@
       if (!e.target.closest('#emojiPopover') && !e.target.closest('#btnEmoji')) document.getElementById('emojiPopover').classList.add('hidden');
     });
 
-    // Запуск приложения
+    // Запуск
     applySettings();
+    probeStorage();
+    prefillLastLogin();
     initBackend();
   </script>
 </body>
