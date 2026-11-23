@@ -744,6 +744,54 @@
         statusEl.textContent = meta.subtitle;
       }
     }
+    // =========================================================
+    // СТАТУС ПРОЧТЕНИЯ СООБЩЕНИЙ (✓ отправлено / ✓✓ прочитано)
+    // =========================================================
+    const markingReadIds = new Set();
+
+    function isMessageRead(msg, chat) {
+      const readers = Array.isArray(msg?.readBy) ? msg.readBy : [];
+      if (!chat) return false;
+      if (chat.type === 'dm') {
+        const peerId = (chat.participants || []).find(id => id !== msg.senderId);
+        if (!peerId) return true; // чат с самим собой
+        return readers.includes(peerId);
+      }
+      // В группах/каналах — прочитано, если открыл хотя бы один другой участник
+      return readers.some(id => id && id !== msg.senderId);
+    }
+
+    function markActiveChatAsRead() {
+      if (!currentUserId || !activeChatId || !chatsMap[activeChatId]) return;
+      if (document.hidden) return;
+
+      const pinScreen = document.getElementById('pinLockScreen');
+      if (pinScreen && !pinScreen.classList.contains('hidden')) return;
+
+      const chatArea = document.getElementById('chatArea');
+      const activeContainer = document.getElementById('activeChatContainer');
+      if (!chatArea || !activeContainer) return;
+      if (window.getComputedStyle(chatArea).display === 'none') return;
+      if (window.getComputedStyle(activeContainer).display === 'none') return;
+
+      const unread = messagesList.filter(m =>
+        m.chatId === activeChatId &&
+        m.senderId !== currentUserId &&
+        !(Array.isArray(m.readBy) && m.readBy.includes(currentUserId)) &&
+        !markingReadIds.has(m.id)
+      );
+      if (!unread.length) return;
+
+      unread.forEach(m => {
+        markingReadIds.add(m.id);
+        const existing = Array.isArray(m.readBy) ? m.readBy : [];
+        const nextReadBy = Array.from(new Set([...existing, currentUserId]));
+        dbUpdate('hg_messages', m.id, { readBy: nextReadBy }).catch(e => {
+          console.warn('Read receipt update error:', e);
+          markingReadIds.delete(m.id);
+        });
+      });
+    }
 
     // =========================================================
     // НАДЁЖНОЕ ХРАНИЛИЩЕ
@@ -1346,6 +1394,7 @@
           document.getElementById('pinLockScreen').classList.add('hidden');
           pinBuffer = '';
           updatePinDots();
+          markActiveChatAsRead();
         } else {
           document.getElementById('pinError').classList.remove('hidden');
           setTimeout(() => { pinBuffer = ''; updatePinDots(); }, 350);
@@ -1467,6 +1516,7 @@
     };
 
     function loginSuccess(uid, restored = false) {
+      markingReadIds.clear();
       currentUserId = uid;
       document.getElementById('authScreen').classList.add('hidden');
       document.getElementById('app').classList.remove('hidden');
@@ -1495,6 +1545,7 @@
 
     window.logout = function() {
       notifyTyping(false);
+      markingReadIds.clear();
       const uid = currentUserId;
       saveLastChat();
       if (uid && usersMap[uid]) {
@@ -1778,10 +1829,16 @@
         ` : '';
 
         const showAvatar = !isOut && chat.type === 'group' && settings.showGroupAvatars;
-        const metaRow = (settings.showTimestamps || (isOut && settings.showReadReceipts)) ? `
+        const isRead = isOut ? isMessageRead(msg, chat) : false;
+        const receiptHtml = (isOut && settings.showReadReceipts)
+          ? (isRead
+              ? '<span title="Прочитано" class="font-bold text-white">✓✓</span>'
+              : '<span title="Отправлено" class="opacity-70">✓</span>')
+          : '';
+        const metaRow = (settings.showTimestamps || receiptHtml) ? `
           <div class="flex items-center justify-end gap-1 mt-1 text-[10px] ${isOut ? 'text-white/75' : 'text-slate-400'}">
             ${settings.showTimestamps ? `<span>${formatTime(msg.timestamp)}</span>` : ''}
-            ${(isOut && settings.showReadReceipts) ? '<span>✓✓</span>' : ''}
+            ${receiptHtml}
           </div>
         ` : '';
 
@@ -1804,6 +1861,7 @@
       }).join('');
 
       container.scrollTop = container.scrollHeight;
+      markActiveChatAsRead();
     }
 
     // =========================================================
@@ -2739,6 +2797,8 @@
     });
     msgInputEl.addEventListener('blur', () => notifyTyping(false));
     window.addEventListener('beforeunload', () => notifyTyping(false));
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) markActiveChatAsRead(); });
+    window.addEventListener('focus', () => markActiveChatAsRead());
 
     // Автообновление статуса, чтобы "печатает..." исчезало ровно по таймауту
     setInterval(() => {
