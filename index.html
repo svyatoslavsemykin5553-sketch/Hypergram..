@@ -1221,6 +1221,11 @@
       createChatDraft[key] = val;
     };
 
+    window.ccToggleDraft = function(key) {
+      createChatDraft[key] = !createChatDraft[key];
+      renderCreateChatModal();
+    };
+
     window.ccToggleMember = function(uid) {
       const idx = createChatDraft.selectedMembers.indexOf(uid);
       if (idx > -1) createChatDraft.selectedMembers.splice(idx, 1);
@@ -1253,6 +1258,7 @@
       reader.readAsDataURL(file);
     };
 
+    window.renderCreateChatModal = renderCreateChatModal;
     function renderCreateChatModal() {
       const tabs = [
         ['ccTabGroup', 'group'],
@@ -1373,7 +1379,7 @@
                 <div class="text-xs font-semibold">Подписывать посты именем автора</div>
                 <div class="text-[11px] text-slate-500 dark:text-[#8d887c]">Показывать, кто из админов опубликовал запись</div>
               </div>
-              <button type="button" role="switch" aria-checked="${!!d.signPosts}" onclick="ccUpdateDraft('signPosts', !createChatDraft.signPosts); renderCreateChatModal();" class="hg-switch"></button>
+              <button type="button" role="switch" aria-checked="${!!d.signPosts}" onclick="ccToggleDraft('signPosts')" class="hg-switch"></button>
             </div>
           ` : `
             <div class="p-3 rounded-xl bg-slate-100 dark:bg-[#262421] border border-slate-200 dark:border-[#36322e] space-y-2">
