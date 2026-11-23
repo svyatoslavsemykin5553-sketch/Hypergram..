@@ -109,6 +109,12 @@
 
     /* Маскировка пароля в настройках без вызова автозаполнения браузера */
     .hg-secret-input { -webkit-text-security: disc; }
+
+    /* Анимация точек "печатает..." */
+    @keyframes hgTypingBlink { 0%, 20% { opacity: 0.2; } 50% { opacity: 1; } 100% { opacity: 0.2; } }
+    .hg-typing-dots span { display: inline-block; animation: hgTypingBlink 1.2s infinite; }
+    .hg-typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .hg-typing-dots span:nth-child(3) { animation-delay: 0.4s; }
   </style>
 </head>
 
@@ -642,6 +648,77 @@
     let settingsTab = 'profile';
     let pinBuffer = '';
     let lastKnownMsgCount = 0;
+    let typingStopTimer = null;
+    let lastTypingSentAt = 0;
+    let lastTypingSentChat = '';
+    const TYPING_TTL = 5000;
+
+    function getTypingUsers(chatId) {
+      if (!chatId) return [];
+      const now = Date.now();
+      return Object.values(usersMap).filter(u =>
+        u.id !== currentUserId &&
+        u.typingChatId === chatId &&
+        (now - (u.typingAt || 0)) < TYPING_TTL &&
+        !settings.blockedUsers.includes(u.id)
+      );
+    }
+
+    function getTypingLabel(chat) {
+      if (!chat || chat.type === 'channel') return '';
+      const typers = getTypingUsers(chat.id);
+      if (!typers.length) return '';
+      if (chat.type === 'dm') return 'печатает';
+      if (typers.length === 1) return `${typers[0].displayName} печатает`;
+      return `${typers[0].displayName} и ещё ${typers.length - 1} печатают`;
+    }
+
+    function renderTypingDotsHtml(label) {
+      return `${escapeHtml(label)}<span class="hg-typing-dots"><span>.</span><span>.</span><span>.</span></span>`;
+    }
+
+    function notifyTyping(isTyping) {
+      if (!currentUserId || !usersMap[currentUserId]) return;
+      clearTimeout(typingStopTimer);
+
+      if (!isTyping) {
+        if (lastTypingSentChat) {
+          lastTypingSentChat = '';
+          lastTypingSentAt = 0;
+          dbUpdate('hg_users', currentUserId, { typingChatId: '', typingAt: 0 }).catch(() => {});
+        }
+        return;
+      }
+
+      const chat = chatsMap[activeChatId];
+      if (!chat || (chat.type === 'channel' && !isAdmin()) || getCurrentUser()?.banned) return;
+
+      const now = Date.now();
+      if (lastTypingSentChat !== activeChatId || (now - lastTypingSentAt) > 2000) {
+        lastTypingSentChat = activeChatId;
+        lastTypingSentAt = now;
+        dbUpdate('hg_users', currentUserId, { typingChatId: activeChatId, typingAt: now }).catch(() => {});
+      }
+
+      typingStopTimer = setTimeout(() => {
+        notifyTyping(false);
+      }, 3200);
+    }
+
+    function updateActiveChatHeaderStatus() {
+      const statusEl = document.getElementById('chatHeaderStatus');
+      const chat = chatsMap[activeChatId];
+      if (!statusEl || !chat) return;
+      const typingLabel = getTypingLabel(chat);
+      if (typingLabel) {
+        statusEl.className = 'text-xs hg-accent-text font-semibold truncate';
+        statusEl.innerHTML = renderTypingDotsHtml(typingLabel);
+      } else {
+        const meta = getChatMeta(chat);
+        statusEl.className = 'text-xs text-slate-500 dark:text-[#8d887c] truncate';
+        statusEl.textContent = meta.subtitle;
+      }
+    }
 
     // =========================================================
     // НАДЁЖНОЕ ХРАНИЛИЩЕ
@@ -1391,6 +1468,7 @@
     }
 
     window.logout = function() {
+      notifyTyping(false);
       const uid = currentUserId;
       saveLastChat();
       if (uid && usersMap[uid]) {
@@ -1495,11 +1573,14 @@
         const meta = getChatMeta(c);
         const active = c.id === activeChatId;
         const lastMsg = messagesList.filter(m => m.chatId === c.id).slice(-1)[0];
-        let preview = 'Нет сообщений';
-        if (lastMsg) {
-          if (settings.hidePreviews) preview = 'Сообщение скрыто';
-          else if (settings.blockedUsers.includes(lastMsg.senderId)) preview = 'Пользователь в ЧС';
-          else preview = escapeHtml(lastMsg.text);
+        const typingLabel = getTypingLabel(c);
+        let previewHtml = 'Нет сообщений';
+        if (typingLabel) {
+          previewHtml = `<span class="hg-accent-text font-semibold">${renderTypingDotsHtml(typingLabel)}</span>`;
+        } else if (lastMsg) {
+          if (settings.hidePreviews) previewHtml = 'Сообщение скрыто';
+          else if (settings.blockedUsers.includes(lastMsg.senderId)) previewHtml = 'Пользователь в ЧС';
+          else previewHtml = escapeHtml(lastMsg.text);
         }
         const time = (lastMsg && settings.showTimestamps) ? formatTime(lastMsg.timestamp) : '';
 
@@ -1511,7 +1592,7 @@
                 <div class="font-semibold text-sm truncate flex items-center gap-1">${escapeHtml(meta.title)}${renderBadges(meta.badges, true)}</div>
                 <span class="text-[10px] text-slate-400 flex-shrink-0">${time}</span>
               </div>
-              <div class="text-xs text-slate-500 dark:text-[#8d887c] truncate mt-0.5">${preview}</div>
+              <div class="text-xs text-slate-500 dark:text-[#8d887c] truncate mt-0.5">${previewHtml}</div>
             </div>
           </div>
         `;
@@ -1540,6 +1621,7 @@
     };
 
     window.selectChat = function(chatId) {
+      if (activeChatId !== chatId) notifyTyping(false);
       activeChatId = chatId;
       saveLastChat();
       cancelReply();
@@ -1595,7 +1677,7 @@
       const meta = getChatMeta(chat);
       applyAvatarEl(document.getElementById('chatHeaderAvatar'), meta, 'w-10 h-10 rounded-xl flex items-center justify-center font-bold text-white text-sm flex-shrink-0');
       document.getElementById('chatHeaderTitle').innerHTML = `<span class="truncate">${escapeHtml(meta.title)}</span>${renderBadges(meta.badges, false)}`;
-      document.getElementById('chatHeaderStatus').textContent = meta.subtitle;
+      updateActiveChatHeaderStatus();
 
       const cur = getCurrentUser();
       const restrictEl = document.getElementById('composerRestriction');
@@ -1712,6 +1794,7 @@
 
       const text = applyEmoticons(rawText);
       const id = 'm_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+      notifyTyping(false);
       input.value = '';
       input.style.height = 'auto';
       const replyId = replyToMsgId;
@@ -2623,7 +2706,22 @@
       `<button type="button" onclick="insertEmoji('${e}')" class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-[#36322e]">${e}</button>`
     ).join('');
 
-    document.getElementById('messageInput').addEventListener('keydown', (e) => {
+    const msgInputEl = document.getElementById('messageInput');
+    msgInputEl.addEventListener('input', () => {
+      if (msgInputEl.value.trim().length > 0) notifyTyping(true);
+      else notifyTyping(false);
+    });
+    msgInputEl.addEventListener('blur', () => notifyTyping(false));
+    window.addEventListener('beforeunload', () => notifyTyping(false));
+
+    // Автообновление статуса, чтобы "печатает..." исчезало ровно по таймауту
+    setInterval(() => {
+      if (!currentUserId) return;
+      updateActiveChatHeaderStatus();
+      renderChatList();
+    }, 1500);
+
+    msgInputEl.addEventListener('keydown', (e) => {
       if (settings.sendOnEnter) {
         if (e.key === 'Enter' && !e.shiftKey) {
           e.preventDefault();
