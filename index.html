@@ -362,6 +362,18 @@
         <!-- Лента сообщений -->
         <div id="messagesContainer" class="flex-1 overflow-y-auto custom-scroll px-3 sm:px-6 py-4 space-y-2 chat-wallpaper-dark wp-lines select-text"></div>
 
+        <!-- Превью прикреплённого фото/видео -->
+        <div id="mediaPreviewBar" class="hidden px-4 py-2 bg-white dark:bg-[#1a1917] border-t border-slate-200 dark:border-[#2e2b28] flex items-center justify-between gap-3 flex-shrink-0">
+          <div class="flex items-center gap-3 min-w-0 flex-1">
+            <div id="mediaPreviewThumb" class="w-12 h-12 rounded-xl overflow-hidden bg-slate-200 dark:bg-[#262421] flex items-center justify-center flex-shrink-0"></div>
+            <div class="min-w-0 flex-1">
+              <div id="mediaPreviewTitle" class="text-xs font-semibold truncate"></div>
+              <div id="mediaPreviewSub" class="text-[11px] text-slate-500 dark:text-[#8d887c] truncate"></div>
+            </div>
+          </div>
+          <button onclick="clearPendingMedia()" title="Убрать вложение" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-[#2a2724] text-slate-400">✕</button>
+        </div>
+
         <!-- Баннер ответа (Reply) -->
         <div id="replyBanner" class="hidden px-4 py-2 bg-white dark:bg-[#1a1917] border-t border-slate-200 dark:border-[#2e2b28] flex items-center justify-between gap-3 flex-shrink-0">
           <div class="border-l-2 hg-accent-border pl-2.5 min-w-0">
@@ -382,6 +394,12 @@
           <div id="composerRestriction" class="hidden py-2.5 px-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-500 text-xs sm:text-sm font-medium text-center"></div>
 
           <div id="composerControls" class="flex items-end gap-2">
+            <input id="mediaFileInput" type="file" accept="image/*,video/*" class="hidden" onchange="handleChatMediaSelect(event)" />
+            <button type="button" onclick="triggerChatMediaSelect()" title="Прикрепить фото или видео" class="w-10 h-10 rounded-xl bg-slate-100 dark:bg-[#262421] hover:bg-slate-200 dark:hover:bg-[#322f2b] text-slate-600 dark:text-slate-300 flex items-center justify-center transition flex-shrink-0">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+              </svg>
+            </button>
             <div class="flex-1 relative">
               <textarea id="messageInput" rows="1" placeholder="Написать сообщение..." class="w-full max-h-32 resize-none rounded-2xl bg-slate-100 dark:bg-[#262421] text-slate-900 dark:text-slate-100 placeholder-slate-400 px-4 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/50 transition custom-scroll"></textarea>
               <button id="btnEmoji" onclick="toggleEmojiPopover(event)" class="absolute right-2 bottom-1.5 p-1.5 rounded-lg hover:bg-slate-200/70 dark:hover:bg-[#36322e] text-slate-500 dark:text-[#8d887c]">😊</button>
@@ -552,6 +570,18 @@
     </div>
   </div>
 
+  <!-- ПРОСМОТР ФОТО ВО ВЕСЬ ЭКРАН (LIGHTBOX) -->
+  <div id="mediaLightbox" onclick="closeMediaLightbox()" class="hidden fixed inset-0 z-[80] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
+    <div onclick="event.stopPropagation()" class="relative max-w-4xl max-h-[90vh] flex flex-col items-center gap-3">
+      <div class="flex items-center justify-end gap-2 w-full">
+        <a id="mediaLightboxDownload" href="#" download="hypergram-media.jpg" class="px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-semibold transition">Скачать</a>
+        <button onclick="closeMediaLightbox()" class="w-8 h-8 rounded-xl bg-white/15 hover:bg-white/25 text-white font-bold text-sm transition">✕</button>
+      </div>
+      <img id="mediaLightboxImg" src="" alt="" class="max-w-full max-h-[80vh] rounded-xl object-contain" />
+      <div id="mediaLightboxCaption" class="text-xs text-white/85 text-center max-w-xl"></div>
+    </div>
+  </div>
+
   <!-- TOAST УВЕДОМЛЕНИЯ -->
   <div id="toastContainer" class="fixed top-4 right-4 z-[60] flex flex-col gap-2 pointer-events-none max-w-xs w-full"></div>
 
@@ -561,6 +591,7 @@
   <script type="module">
     let initializeApp, getAuth, signInAnonymously, signInWithCustomToken;
     let getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, collection, onSnapshot, query, orderBy, limit;
+    let fbStorage = null, storageModRef = null;
 
     const AVATAR_GRADIENTS = [
       'from-sky-500 to-indigo-600',
@@ -890,6 +921,162 @@
       });
     }
 
+
+
+    // =========================================================
+    // ЗАГРУЗКА ФОТО И ВИДЕО В ЧАТЫ
+    // =========================================================
+    let pendingMedia = null; // { type: 'image'|'video', dataUrl, file, name, size, previewUrl }
+    let mediaUploading = false;
+    const MAX_INLINE_VIDEO_BYTES = 650 * 1024; // 650 КБ — безопасно помещается в документ Firestore (лимит 1 МБ)
+    const MAX_STORAGE_VIDEO_BYTES = 25 * 1024 * 1024; // 25 МБ через Firebase Storage
+
+    function formatFileSize(bytes) {
+      if (!bytes) return '';
+      if (bytes < 1024) return bytes + ' Б';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' КБ';
+      return (bytes / (1024 * 1024)).toFixed(1) + ' МБ';
+    }
+
+    function getMessagePreviewText(msg) {
+      if (!msg) return '';
+      const prefix = msg.media?.type === 'image' ? '📷 Фото' : (msg.media?.type === 'video' ? '🎬 Видео' : '');
+      const txt = (msg.text || '').trim();
+      if (prefix && txt) return `${prefix}: ${txt}`;
+      return prefix || txt;
+    }
+
+    function compressChatImage(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = ev => {
+          const img = new Image();
+          img.onload = () => {
+            try {
+              const maxSide = 1280;
+              let w = img.width, h = img.height;
+              if (w > maxSide || h > maxSide) {
+                if (w >= h) { h = Math.round(h * maxSide / w); w = maxSide; }
+                else { w = Math.round(w * maxSide / h); h = maxSide; }
+              }
+              const canvas = document.createElement('canvas');
+              canvas.width = w; canvas.height = h;
+              canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+              let dataUrl = canvas.toDataURL('image/jpeg', 0.80);
+              if (dataUrl.length > 750000) dataUrl = canvas.toDataURL('image/jpeg', 0.62);
+              resolve(dataUrl);
+            } catch (err) { reject(err); }
+          };
+          img.onerror = () => reject(new Error('Image load error'));
+          img.src = ev.target.result;
+        };
+        reader.onerror = () => reject(new Error('File read error'));
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function readFileAsDataUrl(file) {
+      return new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = e => resolve(e.target.result);
+        r.onerror = () => reject(new Error('Read error'));
+        r.readAsDataURL(file);
+      });
+    }
+
+    async function uploadVideoToCloudStorage(file) {
+      if (!useCloud || !db) throw new Error('NO_CLOUD');
+      if (!storageModRef) {
+        storageModRef = await import('https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js');
+        fbStorage = storageModRef.getStorage();
+      }
+      const ext = (file.name.split('.').pop() || 'mp4').replace(/[^a-z0-9]/gi, '').slice(0, 6) || 'mp4';
+      const path = `artifacts/${appId}/public/media/${Date.now()}_${Math.random().toString(36).slice(2, 7)}.${ext}`;
+      const r = storageModRef.ref(fbStorage, path);
+      await storageModRef.uploadBytes(r, file, { contentType: file.type || 'video/mp4' });
+      return await storageModRef.getDownloadURL(r);
+    }
+
+    window.triggerChatMediaSelect = function() {
+      const inp = document.getElementById('mediaFileInput');
+      if (inp) { inp.value = ''; inp.click(); }
+    };
+
+    window.handleChatMediaSelect = async function(e) {
+      const file = e.target?.files?.[0];
+      if (!file) return;
+      await attachMediaFile(file);
+    };
+
+    async function attachMediaFile(file) {
+      const isImg = file.type && file.type.startsWith('image/');
+      const isVid = file.type && file.type.startsWith('video/');
+      if (!isImg && !isVid) {
+        showToast('Поддерживаются только фото и видео', 'error');
+        return;
+      }
+
+      clearPendingMedia();
+
+      if (isImg) {
+        if (file.size > 20 * 1024 * 1024) { showToast('Фото слишком большое (макс. 20 МБ)', 'error'); return; }
+        try {
+          const dataUrl = await compressChatImage(file);
+          pendingMedia = { type: 'image', dataUrl, file: null, name: file.name || 'Фото.jpg', size: file.size, previewUrl: dataUrl };
+          renderPendingMediaBar();
+          document.getElementById('messageInput')?.focus();
+        } catch (err) {
+          showToast('Не удалось обработать фото', 'error');
+        }
+      } else {
+        if (file.size > MAX_STORAGE_VIDEO_BYTES) { showToast('Видео слишком большое (макс. 25 МБ)', 'error'); return; }
+        const previewUrl = URL.createObjectURL(file);
+        pendingMedia = { type: 'video', dataUrl: '', file, name: file.name || 'Видео.mp4', size: file.size, previewUrl };
+        renderPendingMediaBar();
+        document.getElementById('messageInput')?.focus();
+      }
+    }
+
+    function renderPendingMediaBar() {
+      const bar = document.getElementById('mediaPreviewBar');
+      const thumb = document.getElementById('mediaPreviewThumb');
+      const title = document.getElementById('mediaPreviewTitle');
+      const sub = document.getElementById('mediaPreviewSub');
+      if (!bar || !pendingMedia) {
+        if (bar) bar.classList.add('hidden');
+        return;
+      }
+      if (pendingMedia.type === 'image') {
+        thumb.innerHTML = `<img src="${escapeHtml(pendingMedia.previewUrl)}" alt="" class="w-full h-full object-cover" />`;
+      } else {
+        thumb.innerHTML = `<video src="${escapeHtml(pendingMedia.previewUrl)}" muted class="w-full h-full object-cover"></video>`;
+      }
+      title.textContent = pendingMedia.name;
+      sub.textContent = `${pendingMedia.type === 'image' ? 'Фото' : 'Видео'} • ${formatFileSize(pendingMedia.size)} • Можно добавить подпись`;
+      bar.classList.remove('hidden');
+    }
+
+    window.clearPendingMedia = function() {
+      if (pendingMedia?.previewUrl && pendingMedia.previewUrl.startsWith('blob:')) {
+        try { URL.revokeObjectURL(pendingMedia.previewUrl); } catch (e) {}
+      }
+      pendingMedia = null;
+      const bar = document.getElementById('mediaPreviewBar');
+      if (bar) bar.classList.add('hidden');
+    };
+
+    window.openMediaLightbox = function(url, caption = '') {
+      if (!url) return;
+      document.getElementById('mediaLightboxImg').src = url;
+      document.getElementById('mediaLightboxDownload').href = url;
+      document.getElementById('mediaLightboxCaption').textContent = caption || '';
+      document.getElementById('mediaLightbox').classList.remove('hidden');
+    };
+
+    window.closeMediaLightbox = function() {
+      document.getElementById('mediaLightbox').classList.add('hidden');
+      document.getElementById('mediaLightboxImg').src = '';
+    };
 
     // =========================================================
     // СИСТЕМА КАНАЛОВ И ГРУППОВЫХ ЧАТОВ
@@ -1472,7 +1659,7 @@
         banner.classList.add('hidden');
         return;
       }
-      textEl.textContent = pinned.text;
+      textEl.textContent = getMessagePreviewText(pinned);
       unpinBtn.classList.toggle('hidden', !isChatAdmin(chat));
       banner.classList.remove('hidden');
     }
@@ -2429,7 +2616,7 @@
         } else if (lastMsg) {
           if (settings.hidePreviews) previewHtml = 'Сообщение скрыто';
           else if (settings.blockedUsers.includes(lastMsg.senderId)) previewHtml = 'Пользователь в ЧС';
-          else previewHtml = escapeHtml(lastMsg.text);
+          else previewHtml = escapeHtml(getMessagePreviewText(lastMsg));
         }
         const time = (lastMsg && settings.showTimestamps) ? formatTime(lastMsg.timestamp) : '';
         const typeTag = c.type === 'channel'
@@ -2504,6 +2691,7 @@
       activeChatId = chatId;
       saveLastChat();
       cancelReply();
+      clearPendingMedia();
       if (window.innerWidth < 768) {
         document.getElementById('leftSidebar').classList.add('hidden');
         document.getElementById('chatArea').classList.remove('hidden');
@@ -2612,7 +2800,7 @@
             replyHtml = `
               <div onclick="scrollToMsg('${orig.id}')" class="mb-1.5 pl-2 py-1 pr-2 rounded-lg bg-black/10 dark:bg-white/10 border-l-2 hg-accent-border cursor-pointer">
                 <div class="text-[11px] font-semibold hg-accent-text">${escapeHtml(origUser)}</div>
-                <div class="text-[11px] opacity-80 truncate max-w-[200px]">${escapeHtml(orig.text)}</div>
+                <div class="text-[11px] opacity-80 truncate max-w-[200px]">${escapeHtml(getMessagePreviewText(orig))}</div>
               </div>
             `;
           }
@@ -2669,7 +2857,17 @@
               <button onclick="openCtxMenu(event, '${msg.id}')" class="opacity-0 group-hover:opacity-100 absolute -top-2 ${isOut ? '-left-7' : '-right-7'} w-6 h-6 rounded-full bg-white dark:bg-[#262421] border border-slate-200 dark:border-[#403b36] text-xs shadow flex items-center justify-center text-slate-700 dark:text-slate-200">⋮</button>
               ${senderHeader}
               ${replyHtml}
-              <div class="hg-msg-text leading-relaxed whitespace-pre-wrap break-words">${escapeHtml(msg.text)}</div>
+              ${msg.media?.type === 'image' && msg.media?.url ? `
+                <div class="${msg.text ? 'mb-1.5' : ''} overflow-hidden rounded-lg">
+                  <img src="${escapeHtml(msg.media.url)}" alt="" loading="lazy" onclick="openMediaLightbox(this.src, ${JSON.stringify(msg.text || '')})" class="max-w-full max-h-72 rounded-lg object-cover cursor-pointer hover:opacity-95 transition" />
+                </div>
+              ` : ''}
+              ${msg.media?.type === 'video' && msg.media?.url ? `
+                <div class="${msg.text ? 'mb-1.5' : ''} overflow-hidden rounded-lg">
+                  <video src="${escapeHtml(msg.media.url)}" controls playsinline preload="metadata" class="max-w-full max-h-72 rounded-lg bg-black"></video>
+                </div>
+              ` : ''}
+              ${msg.text ? `<div class="hg-msg-text leading-relaxed whitespace-pre-wrap break-words">${escapeHtml(msg.text)}</div>` : ''}
               ${reactionsHtml ? `<div class="flex flex-wrap gap-1 mt-1.5">${reactionsHtml}</div>` : ''}
               ${metaRow}
             </div>
@@ -2686,9 +2884,10 @@
     // ОТПРАВКА, РЕАКЦИИ, ОТВЕТЫ, УДАЛЕНИЕ
     // =========================================================
     window.sendMessage = async function() {
+      if (mediaUploading) return;
       const input = document.getElementById('messageInput');
       const rawText = input.value.trim();
-      if (!rawText || !activeChatId) return;
+      if ((!rawText && !pendingMedia) || !activeChatId) return;
 
       const chat = chatsMap[activeChatId];
       const perm = canWriteToChat(chat);
@@ -2708,16 +2907,49 @@
         slowModeLastSent[chat.id] = Date.now();
       }
 
-      const text = applyEmoticons(rawText);
+      let mediaPayload = null;
+      if (pendingMedia) {
+        mediaUploading = true;
+        try {
+          if (pendingMedia.type === 'image') {
+            mediaPayload = { type: 'image', url: pendingMedia.dataUrl, name: pendingMedia.name };
+          } else if (pendingMedia.type === 'video') {
+            if (pendingMedia.file.size <= MAX_INLINE_VIDEO_BYTES) {
+              const dataUrl = await readFileAsDataUrl(pendingMedia.file);
+              mediaPayload = { type: 'video', url: dataUrl, name: pendingMedia.name };
+            } else {
+              showToast('Загрузка видео...', 'info');
+              try {
+                const url = await uploadVideoToCloudStorage(pendingMedia.file);
+                mediaPayload = { type: 'video', url, name: pendingMedia.name };
+              } catch (err) {
+                console.warn('Video storage upload failed:', err);
+                showToast('Для видео тяжелее 650 КБ нужно включить Firebase Storage. Короткие видео до 650 КБ отправляются сразу.', 'error');
+                mediaUploading = false;
+                return;
+              }
+            }
+          }
+        } catch (err) {
+          console.error(err);
+          showToast('Ошибка при загрузке файла', 'error');
+          mediaUploading = false;
+          return;
+        }
+        mediaUploading = false;
+      }
+
+      const text = rawText ? applyEmoticons(rawText) : '';
       const id = 'm_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
       notifyTyping(false);
       input.value = '';
       input.style.height = 'auto';
       const replyId = replyToMsgId;
       cancelReply();
+      clearPendingMedia();
 
       playSound('send');
-      await dbSet('hg_messages', id, {
+      const msgDoc = {
         id,
         chatId: activeChatId,
         senderId: currentUserId,
@@ -2727,7 +2959,9 @@
         timestamp: Date.now(),
         readBy: [currentUserId],
         views: chat.type === 'channel' ? [currentUserId] : []
-      });
+      };
+      if (mediaPayload) msgDoc.media = mediaPayload;
+      await dbSet('hg_messages', id, msgDoc);
     };
 
     window.quickReactMsg = function(msgId) {
@@ -2795,7 +3029,7 @@
       if (!msg) return;
       replyToMsgId = msg.id;
       document.getElementById('replyBannerTitle').textContent = `Ответ для ${usersMap[msg.senderId]?.displayName || 'пользователя'}`;
-      document.getElementById('replyBannerText').textContent = msg.text;
+      document.getElementById('replyBannerText').textContent = getMessagePreviewText(msg);
       document.getElementById('replyBanner').classList.remove('hidden');
       document.getElementById('messageInput').focus();
     };
@@ -3824,6 +4058,23 @@
       else notifyTyping(false);
     });
     msgInputEl.addEventListener('blur', () => notifyTyping(false));
+    msgInputEl.addEventListener('paste', (e) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.type && (item.type.startsWith('image/') || item.type.startsWith('video/'))) {
+          const f = item.getAsFile();
+          if (f) { e.preventDefault(); attachMediaFile(f); break; }
+        }
+      }
+    });
+    const chatAreaEl = document.getElementById('chatArea');
+    chatAreaEl.addEventListener('dragover', (e) => { e.preventDefault(); });
+    chatAreaEl.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const f = e.dataTransfer?.files?.[0];
+      if (f && (f.type.startsWith('image/') || f.type.startsWith('video/'))) attachMediaFile(f);
+    });
     window.addEventListener('beforeunload', () => notifyTyping(false));
     document.addEventListener('visibilitychange', () => { if (!document.hidden) markActiveChatAsRead(); });
     window.addEventListener('focus', () => markActiveChatAsRead());
@@ -3858,6 +4109,7 @@
         return;
       }
       if (e.key === 'Escape') {
+        closeMediaLightbox();
         closeCreateChatModal();
         closeSettingsModal();
         closeAdminModal();
