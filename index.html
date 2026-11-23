@@ -663,6 +663,7 @@
       dndMode: false,
       hidePreviews: false,
       pinCode: '',
+      pinTimeoutSec: 0,
       blockedUsers: [],
       hiddenChats: []
     };
@@ -1806,6 +1807,7 @@
     const LAST_LOGIN_KEY = 'hypergram_last_login_v1';
     const LAST_CHAT_KEY = 'hypergram_last_chat_v1';
     const SETTINGS_KEY = 'hypergram_settings_v1';
+    const PIN_UNLOCKED_KEY = 'hypergram_pin_unlocked_v1';
 
     let sessionRestoreDone = false;
     let cloudSession = null;
@@ -2341,8 +2343,61 @@
     // =========================================================
     // PIN-КОД И ЭКРАН БЛОКИРОВКИ
     // =========================================================
-    window.lockScreenNow = function() {
+    const PIN_TIMEOUT_OPTIONS = [
+      { sec: 0,     label: 'Каждый раз' },
+      { sec: 60,    label: '1 минута' },
+      { sec: 300,   label: '5 минут' },
+      { sec: 900,   label: '15 минут' },
+      { sec: 3600,  label: '1 час' },
+      { sec: 14400, label: '4 часа' },
+      { sec: 86400, label: '24 часа' }
+    ];
+
+    let lastUserActivityAt = Date.now();
+
+    function markPinUnlockedNow() {
+      const now = Date.now();
+      lastUserActivityAt = now;
+      if (currentUserId) {
+        const map = readJson(PIN_UNLOCKED_KEY, {});
+        map[currentUserId] = now;
+        writeJson(PIN_UNLOCKED_KEY, map);
+      }
+    }
+
+    function clearPinUnlockState(uid = currentUserId) {
+      if (!uid) return;
+      const map = readJson(PIN_UNLOCKED_KEY, {});
+      delete map[uid];
+      writeJson(PIN_UNLOCKED_KEY, map);
+    }
+
+    function isPinRequiredNow(uid = currentUserId) {
+      if (!settings.pinCode) return false;
+      const timeoutSec = Number(settings.pinTimeoutSec) || 0;
+      if (timeoutSec <= 0) return true; // Режим «Каждый раз»
+      const map = readJson(PIN_UNLOCKED_KEY, {});
+      const lastUnlocked = Number(map[uid] || 0);
+      if (!lastUnlocked) return true;
+      return (Date.now() - lastUnlocked) >= (timeoutSec * 1000);
+    }
+
+    function touchPinActivity() {
+      lastUserActivityAt = Date.now();
+      const timeoutSec = Number(settings.pinTimeoutSec) || 0;
+      if (!currentUserId || !settings.pinCode || timeoutSec <= 0) return;
+      const pinScreen = document.getElementById('pinLockScreen');
+      if (pinScreen && !pinScreen.classList.contains('hidden')) return;
+      const map = readJson(PIN_UNLOCKED_KEY, {});
+      if (map[currentUserId]) {
+        map[currentUserId] = lastUserActivityAt;
+        writeJson(PIN_UNLOCKED_KEY, map);
+      }
+    }
+
+    window.lockScreenNow = function(clearGrace = true) {
       if (!settings.pinCode) return;
+      if (clearGrace) clearPinUnlockState();
       pinBuffer = '';
       updatePinDots();
       document.getElementById('pinError').classList.add('hidden');
@@ -2372,6 +2427,7 @@
           document.getElementById('pinLockScreen').classList.add('hidden');
           pinBuffer = '';
           updatePinDots();
+          markPinUnlockedNow();
           markActiveChatAsRead();
         } else {
           document.getElementById('pinError').classList.remove('hidden');
@@ -2518,10 +2574,13 @@
       applySettings();
       try { renderIfLoggedIn(); } catch (e) { console.warn('render after login:', e); }
 
-      if (restored && settings.pinCode) {
-        lockScreenNow();
-      } else if (!restored) {
-        showToast(`Добро пожаловать, ${usersMap[uid]?.displayName || uid}!`, 'success');
+      if (restored && settings.pinCode && isPinRequiredNow(uid)) {
+        lockScreenNow(false);
+      } else {
+        if (settings.pinCode) markPinUnlockedNow();
+        if (!restored) {
+          showToast(`Добро пожаловать, ${usersMap[uid]?.displayName || uid}!`, 'success');
+        }
       }
     }
 
@@ -3787,7 +3846,11 @@
               <div class="flex items-center justify-between gap-2">
                 <div>
                   <div class="text-sm font-semibold">PIN-блокировка экрана</div>
-                  <div class="text-xs text-slate-500 dark:text-[#8d887c] mt-0.5">${settings.pinCode ? 'Код-пароль активен. Запрашивается при перезагрузке или ручной блокировке.' : 'Защитите мессенджер 4-значным кодом доступа.'}</div>
+                  <div class="text-xs text-slate-500 dark:text-[#8d887c] mt-0.5">${settings.pinCode
+                    ? ((Number(settings.pinTimeoutSec) || 0) === 0
+                        ? 'Код-пароль активен. Запрашивается при каждом входе/перезагрузке.'
+                        : `Код-пароль активен. Повторный ввод раз в ${(PIN_TIMEOUT_OPTIONS.find(o => o.sec === Number(settings.pinTimeoutSec))?.label || '').toLowerCase()}.`)
+                    : 'Защитите мессенджер 4-значным кодом доступа.'}</div>
                 </div>
                 ${settings.pinCode ? `<span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-500/20 text-emerald-500">Вкл</span>` : ''}
               </div>
@@ -3799,6 +3862,16 @@
                   <button onclick="removePinCode()" class="px-3.5 py-2 rounded-xl bg-red-500/10 text-red-500 text-xs font-semibold hover:bg-red-500/20 transition">Отключить</button>
                 ` : ''}
               </div>
+              ${settings.pinCode ? `
+                <div class="pt-2.5 border-t border-slate-200/80 dark:border-[#36322e] space-y-2">
+                  <div class="text-xs font-semibold">Частота запроса PIN-кода</div>
+                  <div class="flex flex-wrap gap-1.5">
+                    ${PIN_TIMEOUT_OPTIONS.map(o => `
+                      <button type="button" onclick="setPinTimeout(${o.sec})" class="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition ${(Number(settings.pinTimeoutSec) || 0) === o.sec ? 'hg-accent-border hg-accent-soft hg-accent-text' : 'border-slate-300 dark:border-[#36322e] hover:bg-slate-200/60 dark:hover:bg-[#2a2724]'}">${o.label}</button>
+                    `).join('')}
+                  </div>
+                </div>
+              ` : ''}
             </div>
 
             <!-- Чёрный список -->
@@ -3984,13 +4057,24 @@
         return;
       }
       settings.pinCode = val;
+      markPinUnlockedNow();
       saveSettings();
       renderSettingsModal();
       showToast('PIN-код установлен', 'success');
     };
 
+    window.setPinTimeout = function(sec) {
+      settings.pinTimeoutSec = Number(sec) || 0;
+      if (settings.pinTimeoutSec > 0) markPinUnlockedNow();
+      saveSettings();
+      renderSettingsModal();
+      const lbl = PIN_TIMEOUT_OPTIONS.find(o => o.sec === settings.pinTimeoutSec)?.label || '';
+      showToast(`Запрос PIN: ${lbl.toLowerCase()}`, 'success');
+    };
+
     window.removePinCode = function() {
       settings.pinCode = '';
+      clearPinUnlockState();
       saveSettings();
       renderSettingsModal();
       showToast('PIN-блокировка отключена');
@@ -4246,13 +4330,29 @@
       if (f && (f.type.startsWith('image/') || f.type.startsWith('video/'))) attachMediaFile(f);
     });
     window.addEventListener('beforeunload', () => notifyTyping(false));
-    document.addEventListener('visibilitychange', () => { if (!document.hidden) markActiveChatAsRead(); });
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        if (currentUserId && settings.pinCode && (Number(settings.pinTimeoutSec) || 0) > 0 && isPinRequiredNow(currentUserId)) {
+          lockScreenNow(false);
+        } else {
+          markActiveChatAsRead();
+        }
+      }
+    });
     window.addEventListener('focus', () => markActiveChatAsRead());
     document.getElementById('chatArea').addEventListener('pointerdown', () => markActiveChatAsRead());
+    ['pointerdown', 'keydown'].forEach(ev => document.addEventListener(ev, touchPinActivity, { passive: true }));
 
-    // Автообновление статуса, чтобы "печатает..." исчезало ровно по таймауту
+    // Автообновление статуса и проверка таймаута PIN-блокировки
     setInterval(() => {
       if (!currentUserId) return;
+      const timeoutSec = Number(settings.pinTimeoutSec) || 0;
+      const pinScreen = document.getElementById('pinLockScreen');
+      if (settings.pinCode && timeoutSec > 0 && pinScreen && pinScreen.classList.contains('hidden')) {
+        if ((Date.now() - lastUserActivityAt) >= timeoutSec * 1000) {
+          lockScreenNow(true);
+        }
+      }
       updateActiveChatHeaderStatus();
       renderChatList();
     }, 1500);
