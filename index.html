@@ -584,8 +584,11 @@
     // =========================================================
     // ПАРОЛИ: в базе хранится только соленый хеш, а не сам пароль
     // =========================================================
+    const ADMIN_IDS = ['hypergram', 'danya'];
     const ADMIN_SALT = 'hypergram-admin';
     const ADMIN_HASH = '807bf9b0444fba2506169bbd8185aab79066bd33275218725fbc2d7f78557c61';
+    const DANYA_SALT = 'hypergram-admin-danya';
+    const DANYA_HASH = 'd4df6168b8dee3a73198cc42318df2aed1c2f44fb1ab7af5d177962578d19b69';
     const HASH_ROUNDS = 5000;
     const MESSAGES_LIMIT = 300;
     const textEnc = new TextEncoder();
@@ -1161,6 +1164,24 @@
         createdAt: Date.now()
       });
 
+      await createIfMissing('hg_users', 'danya', {
+        id: 'danya',
+        username: '@danya',
+        displayName: 'Даниил',
+        passHash: DANYA_HASH,
+        salt: DANYA_SALT,
+        role: 'admin',
+        avatarColor: 'from-indigo-500 to-purple-600',
+        initials: 'ДН',
+        avatarUrl: '',
+        bio: 'Администратор HYPERGRAM.',
+        status: 'online',
+        badges: { verified: true, premium: true, staff: true, scam: false },
+        customTitle: 'Администратор',
+        banned: false,
+        createdAt: Date.now()
+      });
+
       await createIfMissing('hg_chats', 'global_chat', {
         id: 'global_chat',
         type: 'group',
@@ -1346,7 +1367,7 @@
     }
 
     function isAdmin() {
-      return getCurrentUser()?.role === 'admin';
+      return getCurrentUser()?.role === 'admin' || ADMIN_IDS.includes(currentUserId);
     }
 
     function applyEmoticons(text) {
