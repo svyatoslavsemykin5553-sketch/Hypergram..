@@ -649,7 +649,8 @@
       dndMode: false,
       hidePreviews: false,
       pinCode: '',
-      blockedUsers: []
+      blockedUsers: [],
+      hiddenChats: []
     };
 
     // Состояние приложения
@@ -1468,6 +1469,9 @@
     window.joinChatById = async function(chatId) {
       const chat = chatsMap[chatId];
       if (!chat || !currentUserId) return;
+      if ((settings.hiddenChats || []).includes(chatId)) {
+        await persistHiddenChats((settings.hiddenChats || []).filter(id => id !== chatId));
+      }
       if (isChatMember(chat)) { selectChat(chatId); return; }
       const members = Array.from(new Set([...(chat.members || []), currentUserId]));
       await dbUpdate('hg_chats', chatId, { members });
@@ -1506,11 +1510,11 @@
       showToast(chat.type === 'channel' ? 'Вы отписались от канала' : 'Вы вышли из группы');
     };
 
-    window.deleteCustomChat = async function(chatId) {
+    window.deleteCustomChat = async function(chatId, skipConfirm = false) {
       const chat = chatsMap[chatId];
       if (!chat || isSystemChat(chat)) { showToast('Системный чат нельзя удалить', 'error'); return; }
       if (!isChatOwner(chat) && !isAdmin()) return;
-      if (!confirm(`Удалить «${chat.title}»? Это действие необратимо.`)) return;
+      if (!skipConfirm && !confirm(`Удалить «${chat.title}»? Это действие необратимо.`)) return;
       await dbDelete('hg_chats', chatId);
       closeInfoPanel();
       if (activeChatId === chatId) activeChatId = 'global_chat';
@@ -1558,11 +1562,12 @@
 
     window.chatToggleMute = async function(chatId, uid) {
       const chat = chatsMap[chatId];
-      if (!chat || !isChatAdmin(chat) || uid === chat.ownerId) return;
+      if (!chat || !isChatAdmin(chat) || uid === chat.ownerId || ADMIN_IDS.includes(uid)) return;
       const muted = new Set(chat.muted || []);
       if (muted.has(uid)) muted.delete(uid); else muted.add(uid);
       await dbUpdate('hg_chats', chatId, { muted: Array.from(muted) });
-      showToast(muted.has(uid) ? 'Участнику запрещено писать' : 'Ограничение снято', 'info');
+      const targetName = usersMap[uid]?.displayName || uid;
+      showToast(muted.has(uid) ? `${targetName} получил мут 🔇` : `С ${targetName} снят мут`, 'info');
     };
 
     window.chatKickMember = async function(chatId, uid) {
@@ -1799,6 +1804,7 @@
     // Загрузка настроек
     let settings = { ...DEFAULT_SETTINGS, ...readJson(SETTINGS_KEY, {}) };
     if (!Array.isArray(settings.blockedUsers)) settings.blockedUsers = [];
+    if (!Array.isArray(settings.hiddenChats)) settings.hiddenChats = [];
 
     let settingsSyncTimer = null;
     function saveSettings() {
@@ -2477,8 +2483,12 @@
       if (usersMap[uid]?.hgSettings) {
         settings = { ...DEFAULT_SETTINGS, ...settings, ...usersMap[uid].hgSettings };
         if (!Array.isArray(settings.blockedUsers)) settings.blockedUsers = [];
-        writeJson(SETTINGS_KEY, settings);
+        if (!Array.isArray(settings.hiddenChats)) settings.hiddenChats = [];
       }
+      if (Array.isArray(usersMap[uid]?.hiddenChats)) {
+        settings.hiddenChats = Array.from(new Set([...(settings.hiddenChats || []), ...usersMap[uid].hiddenChats]));
+      }
+      writeJson(SETTINGS_KEY, settings);
       applySettings();
       try { renderIfLoggedIn(); } catch (e) { console.warn('render after login:', e); }
 
@@ -2576,6 +2586,68 @@
       };
     }
 
+
+    function getUnreadCount(chatId) {
+      if (!currentUserId || !chatId) return 0;
+      const pinScreen = document.getElementById('pinLockScreen');
+      const isLocked = pinScreen && !pinScreen.classList.contains('hidden');
+      const chatArea = document.getElementById('chatArea');
+      const isChatVisible = chatArea && window.getComputedStyle(chatArea).display !== 'none';
+      if (chatId === activeChatId && !document.hidden && !isLocked && isChatVisible) return 0;
+
+      const savedCursor = Number(usersMap[currentUserId]?.readChats?.[chatId] || 0);
+      let count = 0;
+      for (let i = 0; i < messagesList.length; i++) {
+        const m = messagesList[i];
+        if (m.chatId !== chatId) continue;
+        if (m.senderId === currentUserId) continue;
+        if (settings.blockedUsers.includes(m.senderId)) continue;
+        const ts = Number(m.timestamp) || 0;
+        const alreadyInReadBy = Array.isArray(m.readBy) && m.readBy.includes(currentUserId);
+        if (!alreadyInReadBy && ts > savedCursor) count++;
+      }
+      return count;
+    }
+
+    async function persistHiddenChats(nextHidden) {
+      settings.hiddenChats = Array.from(new Set(nextHidden));
+      writeJson(SETTINGS_KEY, settings);
+      if (currentUserId && usersMap[currentUserId]) {
+        usersMap[currentUserId].hiddenChats = [...settings.hiddenChats];
+        await dbUpdate('hg_users', currentUserId, { hiddenChats: [...settings.hiddenChats] }).catch(() => {});
+      }
+    }
+
+    window.deleteChatFromList = async function(e, chatId) {
+      if (e) { e.preventDefault(); e.stopPropagation(); }
+      const chat = chatsMap[chatId];
+      if (!chat || !currentUserId) return;
+
+      if (!isSystemChat(chat) && isChatOwner(chat)) {
+        if (!confirm(`Удалить «${chat.title}» для всех участников?`)) return;
+        await deleteCustomChat(chatId, true);
+        return;
+      }
+
+      if (!isSystemChat(chat) && chat.type !== 'dm' && isChatMember(chat)) {
+        const choice = confirm(`Удалить «${chat.title}» из вашего списка чатов и выйти из него?\n(Нажмите «ОК» — выйти и убрать из списка, «Отмена» — просто скрыть из списка)`);
+        if (choice) {
+          await leaveChat(chatId);
+          return;
+        }
+      }
+
+      const nextHidden = [...(settings.hiddenChats || []), chatId];
+      await persistHiddenChats(nextHidden);
+      if (activeChatId === chatId) {
+        const fallbackChat = Object.values(chatsMap).find(c => isChatMember(c) && !settings.hiddenChats.includes(c.id));
+        activeChatId = fallbackChat ? fallbackChat.id : '';
+        saveLastChat();
+      }
+      renderIfLoggedIn();
+      showToast(`Чат «${getChatMeta(chat).title}» удалён из списка`);
+    };
+
     window.renderChatList = function() {
       const tabsEl = document.getElementById('chatFilterTabs');
       if (tabsEl) {
@@ -2593,8 +2665,12 @@
       const container = document.getElementById('chatList');
       const q = (document.getElementById('searchInput').value || '').trim().toLowerCase();
 
+      const userHidden = Array.isArray(usersMap[currentUserId]?.hiddenChats) ? usersMap[currentUserId].hiddenChats : [];
+      const hiddenSet = new Set([...(settings.hiddenChats || []), ...userHidden]);
+
       const myChats = Object.values(chatsMap).filter(c => {
         if (!isChatMember(c)) return false;
+        if (hiddenSet.has(c.id)) return false;
         if (chatFilter !== 'all' && c.type !== chatFilter) return false;
         return true;
       });
@@ -2629,15 +2705,26 @@
           ? '<span class="text-[9px] uppercase tracking-wider px-1 rounded bg-slate-200/80 dark:bg-[#2e2b28] text-slate-500 dark:text-[#8d887c]">канал</span>'
           : (c.type === 'group' && !isSystemChat(c) ? '<span class="text-[9px] uppercase tracking-wider px-1 rounded bg-slate-200/80 dark:bg-[#2e2b28] text-slate-500 dark:text-[#8d887c]">чат</span>' : '');
 
+        const unread = getUnreadCount(c.id);
+        const unreadBadgeHtml = unread > 0
+          ? `<span class="hg-accent-bg text-white text-[10px] font-bold min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center flex-shrink-0">${unread > 99 ? '99+' : unread}</span>`
+          : '';
+
         return `
-          <div onclick="selectChat('${c.id}')" class="hg-chat-row flex items-center gap-3 px-2.5 py-3 cursor-pointer transition border-b border-slate-200/80 dark:border-[#2e2b28] ${active ? 'hg-chat-active' : 'hover:bg-slate-100 dark:hover:bg-[#2a2724]'}">
+          <div onclick="selectChat('${c.id}')" class="hg-chat-row group relative flex items-center gap-3 px-2.5 py-3 cursor-pointer transition border-b border-slate-200/80 dark:border-[#2e2b28] ${active ? 'hg-chat-active' : 'hover:bg-slate-100 dark:hover:bg-[#2a2724]'}">
             ${avatarBoxHtml(meta, 'w-11 h-11 rounded-2xl text-sm')}
             <div class="min-w-0 flex-1">
-              <div class="flex items-center justify-between gap-1">
+              <div class="flex items-center justify-between gap-1.5">
                 <div class="font-semibold text-sm truncate flex items-center gap-1">${escapeHtml(meta.title)}${renderBadges(meta.badges, true)}${typeTag}</div>
-                <span class="text-[10px] text-slate-400 flex-shrink-0">${time}</span>
+                <span class="text-[10px] ${unread > 0 ? 'hg-accent-text font-bold' : 'text-slate-400'} flex-shrink-0">${time}</span>
               </div>
-              <div class="text-xs text-slate-500 dark:text-[#8d887c] truncate mt-0.5">${previewHtml}</div>
+              <div class="flex items-center justify-between gap-2 mt-0.5">
+                <div class="text-xs text-slate-500 dark:text-[#8d887c] truncate flex-1">${previewHtml}</div>
+                <div class="flex items-center gap-1 flex-shrink-0">
+                  ${unreadBadgeHtml}
+                  <button type="button" onclick="deleteChatFromList(event, '${c.id}')" title="Удалить чат из списка" class="opacity-0 group-hover:opacity-100 focus:opacity-100 w-5 h-5 rounded hover:bg-red-500/15 text-slate-400 hover:text-red-500 flex items-center justify-center text-[11px] transition">✕</button>
+                </div>
+              </div>
             </div>
           </div>
         `;
@@ -3163,15 +3250,17 @@
         const memberIds = isSys ? Object.keys(usersMap) : (chat.members || []);
         const memberObjs = memberIds.map(id => usersMap[id]).filter(Boolean);
 
-        const navHtml = !isSys ? `
-          <div class="grid ${canManage ? 'grid-cols-3' : 'grid-cols-2'} gap-1 p-1 rounded-xl bg-slate-100 dark:bg-[#262421]">
+        const showMembersTab = !isSys || (chat.type === 'group' && canManage);
+        const showEditTab = !isSys && canManage;
+        const navHtml = showMembersTab ? `
+          <div class="grid ${showEditTab ? 'grid-cols-3' : 'grid-cols-2'} gap-1 p-1 rounded-xl bg-slate-100 dark:bg-[#262421]">
             <button onclick="setInfoPanelMode('overview')" class="py-1.5 rounded-lg text-[11px] font-semibold transition ${infoPanelMode === 'overview' ? 'hg-accent-bg text-white' : 'text-slate-500 dark:text-[#8d887c]'}">Инфо</button>
             <button onclick="setInfoPanelMode('members')" class="py-1.5 rounded-lg text-[11px] font-semibold transition ${infoPanelMode === 'members' ? 'hg-accent-bg text-white' : 'text-slate-500 dark:text-[#8d887c]'}">Участники (${memberObjs.length})</button>
-            ${canManage ? `<button onclick="setInfoPanelMode('edit')" class="py-1.5 rounded-lg text-[11px] font-semibold transition ${infoPanelMode === 'edit' ? 'hg-accent-bg text-white' : 'text-slate-500 dark:text-[#8d887c]'}">Настройки</button>` : ''}
+            ${showEditTab ? `<button onclick="setInfoPanelMode('edit')" class="py-1.5 rounded-lg text-[11px] font-semibold transition ${infoPanelMode === 'edit' ? 'hg-accent-bg text-white' : 'text-slate-500 dark:text-[#8d887c]'}">Настройки</button>` : ''}
           </div>
         ` : '';
 
-        if (!isSys && infoPanelMode === 'members') {
+        if (showMembersTab && infoPanelMode === 'members') {
           c.innerHTML = `
             ${navHtml}
             ${canManage ? `
@@ -3196,7 +3285,7 @@
                         <div class="text-[11px] text-slate-500 dark:text-[#8d887c] truncate">${escapeHtml(m.username)}${mMuted ? ' • 🔇 Мут' : ''}</div>
                       </div>
                     </div>
-                    ${(canManage && !mOwner && m.id !== currentUserId) ? `
+                    ${(canManage && !mOwner && !ADMIN_IDS.includes(m.id) && m.id !== currentUserId) ? `
                       <div class="flex flex-wrap gap-1 pt-1.5 border-t border-slate-200 dark:border-[#36322e]">
                         ${(owner || isAdmin()) ? `<button onclick="chatToggleAdmin('${chat.id}','${m.id}')" class="px-2 py-1 rounded-lg text-[10px] font-semibold border border-slate-300 dark:border-[#403b36] hover:bg-slate-200 dark:hover:bg-[#322f2b]">${mAdmin ? 'Снять админа' : 'Сделать админом'}</button>` : ''}
                         ${chat.type === 'group' ? `<button onclick="chatToggleMute('${chat.id}','${m.id}')" class="px-2 py-1 rounded-lg text-[10px] font-semibold border border-slate-300 dark:border-[#403b36] hover:bg-slate-200 dark:hover:bg-[#322f2b]">${mMuted ? 'Размутить' : 'Мут'}</button>` : ''}
