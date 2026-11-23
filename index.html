@@ -651,17 +651,42 @@
     let typingStopTimer = null;
     let lastTypingSentAt = 0;
     let lastTypingSentChat = '';
-    const TYPING_TTL = 5000;
+    const TYPING_TTL = 6000;
+    const typingSeenMap = {}; // { userId: { chatId, typingAt, localSeenAt } }
+    let usersSnapInitialized = false;
+
+    function syncTypingSeen(nextUsers) {
+      const now = Date.now();
+      Object.values(nextUsers).forEach(u => {
+        if (!u || !u.id) return;
+        const prev = typingSeenMap[u.id];
+        if (!u.typingChatId) {
+          delete typingSeenMap[u.id];
+          return;
+        }
+        if (!usersSnapInitialized) {
+          // На первом снимке считаем активным, если время в разумных пределах (защита от зависших флагов)
+          if (Math.abs(now - (u.typingAt || 0)) < 15000) {
+            typingSeenMap[u.id] = { chatId: u.typingChatId, typingAt: u.typingAt || 0, localSeenAt: now };
+          }
+        } else if (!prev || prev.chatId !== u.typingChatId || prev.typingAt !== (u.typingAt || 0)) {
+          // Фиксируем момент получения по ЛОКАЛЬНЫМ часам этого устройства (не зависит от рассинхрона часов между устройствами)
+          typingSeenMap[u.id] = { chatId: u.typingChatId, typingAt: u.typingAt || 0, localSeenAt: now };
+        }
+      });
+      usersSnapInitialized = true;
+    }
 
     function getTypingUsers(chatId) {
       if (!chatId) return [];
       const now = Date.now();
-      return Object.values(usersMap).filter(u =>
-        u.id !== currentUserId &&
-        u.typingChatId === chatId &&
-        (now - (u.typingAt || 0)) < TYPING_TTL &&
-        !settings.blockedUsers.includes(u.id)
-      );
+      return Object.values(usersMap).filter(u => {
+        if (u.id === currentUserId || u.typingChatId !== chatId) return false;
+        if (settings.blockedUsers.includes(u.id)) return false;
+        const seen = typingSeenMap[u.id];
+        if (seen && seen.chatId === chatId && (now - seen.localSeenAt) < TYPING_TTL) return true;
+        return false;
+      });
     }
 
     function getTypingLabel(chat) {
@@ -697,7 +722,7 @@
       if (lastTypingSentChat !== activeChatId || (now - lastTypingSentAt) > 2000) {
         lastTypingSentChat = activeChatId;
         lastTypingSentAt = now;
-        dbUpdate('hg_users', currentUserId, { typingChatId: activeChatId, typingAt: now }).catch(() => {});
+        dbUpdate('hg_users', currentUserId, { typingChatId: activeChatId, typingAt: now }).catch(e => console.warn('Typing update error:', e));
       }
 
       typingStopTimer = setTimeout(() => {
@@ -1146,6 +1171,7 @@
             const next = {};
             snap.forEach(d => { next[d.id] = d.data(); });
             usersMap = next;
+            syncTypingSeen(next);
             tryRestoreSession(!snap.metadata.fromCache);
             renderIfLoggedIn();
           }, (err) => reportSyncError('Users', err));
