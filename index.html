@@ -701,6 +701,12 @@
 
     // Подключение к Firebase Firestore
     let connectError = null;
+    // Ошибки Firestore (например, правила запрещают доступ) показываем прямо на экране входа
+    function reportSyncError(where, err) {
+      console.error(where + ' sync error:', err);
+      const el = document.getElementById('syncStatusBadge');
+      if (el) el.textContent = '🔴 Firestore: ' + (err.code || err.message || err) + ' — проверь правила базы (Rules)';
+    }
     async function initBackend() {
       const statusEl = document.getElementById('syncStatusBadge');
       try {
@@ -756,14 +762,14 @@
             usersMap = next;
             tryRestoreSession(!snap.metadata.fromCache);
             renderIfLoggedIn();
-          }, (err) => console.error('Users sync error:', err));
+          }, (err) => reportSyncError('Users', err));
 
           onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'hg_chats'), (snap) => {
             const next = {};
             snap.forEach(d => { next[d.id] = d.data(); });
             chatsMap = next;
             renderIfLoggedIn();
-          }, (err) => console.error('Chats sync error:', err));
+          }, (err) => reportSyncError('Chats', err));
 
           // Грузим только последние сообщения: бесплатный лимит Firebase — 50 000 чтений в день
           onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', 'hg_messages'), orderBy('timestamp', 'desc'), limit(MESSAGES_LIMIT)), (snap) => {
@@ -772,7 +778,7 @@
             next.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
             messagesList = next;
             renderIfLoggedIn();
-          }, (err) => console.error('Messages sync error:', err));
+          }, (err) => reportSyncError('Messages', err));
 
           await ensureSeedData();
           return;
@@ -787,7 +793,7 @@
       loadFallback();
       await ensureSeedData();
       statusEl.textContent = connectError
-        ? '🔴 Не удалось подключиться к Firebase — аккаунты сохраняются только в этом браузере'
+        ? '🔴 Не удалось подключиться к Firebase (' + (connectError.code || connectError.message || connectError) + ') — аккаунты сохраняются только в этом браузере'
         : '🟡 Локальный режим: аккаунты видны только в этом браузере (подключи Firebase — см. FIREBASE_CONFIG в коде)';
       tryRestoreSession(true);
       if (!persistentStorageOk) {
