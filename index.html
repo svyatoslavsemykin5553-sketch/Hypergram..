@@ -14,7 +14,10 @@
     tailwind.config = {
       darkMode: 'class',
       theme: { extend: {
-        fontFamily: { sans: ['Instrument Sans', 'system-ui', 'sans-serif'], display: ['Bricolage Grotesque', 'Instrument Sans', 'sans-serif'] },
+        fontFamily: {
+          sans: ['Instrument Sans', 'system-ui', 'sans-serif'],
+          display: ['Bricolage Grotesque', 'Instrument Sans', 'sans-serif']
+        },
         borderRadius: { md: '2px', lg: '3px', xl: '4px', '2xl': '8px', '3xl': '10px' },
         boxShadow: { sm: 'none', DEFAULT: 'none', md: 'none', lg: 'none', xl: 'none', '2xl': '4px 4px 0 rgba(0,0,0,.22)' },
         colors: {
@@ -62,7 +65,7 @@
     .hg-bubble { border-radius: var(--hg-bubble-radius) !important; }
     .hg-msg-text { font-size: var(--hg-msg-font) !important; }
 
-    /* Плоские обои: 4 варианта (линии, клетка, точки, чистый фон) */
+    /* Плоские обои: 4 варианта (блокнот, клетка, точки, чистый фон) */
     .chat-wallpaper-dark { background-color: #151412; }
     .chat-wallpaper-light { background-color: #e9e5da; }
 
@@ -106,6 +109,9 @@
       border-radius: 2px; background: #faf7f0; transition: transform 0.15s;
     }
     .hg-switch[aria-checked="true"]::after { transform: translateX(18px); }
+
+    /* Стилизация ползунков под акцентный цвет */
+    .hg-range { accent-color: var(--hg-accent); }
   </style>
 </head>
 
@@ -468,11 +474,12 @@
   <div id="toastContainer" class="fixed top-4 right-4 z-[60] flex flex-col gap-2 pointer-events-none max-w-xs w-full"></div>
 
   <!-- =========================================================
-       ЛОГИКА FIREBASE FIRESTORE + РЕЗЕРВНЫЙ РЕЖИМ + НАСТРОЙКИ
+       ЛОГИКА FIREBASE FIRESTORE + НАСТРОЙКИ + КАСТОМНЫЕ АВАТАРКИ
   ========================================================== -->
   <script type="module">
-    let initializeApp, getAuth, signInAnonymously, signInWithCustomToken;
-    let getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, collection, onSnapshot;
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
     const AVATAR_GRADIENTS = [
       'from-sky-500 to-indigo-600',
@@ -538,6 +545,10 @@
     let auth = null;
     let appId = typeof __app_id !== 'undefined' ? __app_id : 'hypergram-default';
     let useCloud = false;
+    let cloudUid = null;
+    let cloudSession = null;
+    let sessionRestoreDone = false;
+    let seedDone = false;
 
     let usersMap = {};
     let chatsMap = {};
@@ -545,6 +556,7 @@
 
     let currentUserId = null;
     let activeChatId = 'global_chat';
+    let lastChatByUser = {};
     let authMode = 'login';
     let replyToMsgId = null;
     let ctxMsgId = null;
@@ -555,76 +567,40 @@
     let pinBuffer = '';
     let lastKnownMsgCount = 0;
 
+    // Текущие настройки (в памяти + синхронизация с облаком)
+    let settings = { ...DEFAULT_SETTINGS, blockedUsers: [] };
+
     // =========================================================
-    // НАДЁЖНОЕ ХРАНИЛИЩЕ
+    // ОБЛАЧНЫЕ ССЫЛКИ ДЛЯ СЕССИИ И НАСТРОЕК
     // =========================================================
-    const WN_PREFIX = 'HGSTORE:';
-    function wnRead() {
+    function sessionDocRef() {
+      return doc(db, 'artifacts', appId, 'public', 'data', 'hg_sessions', cloudUid);
+    }
+
+    function prefsDocRef() {
+      return doc(db, 'artifacts', appId, 'users', cloudUid, 'hg_prefs', 'settings');
+    }
+
+    async function loadCloudPrefs() {
+      if (!useCloud || !db || !auth?.currentUser || !cloudUid) return;
       try {
-        if (window.name && window.name.startsWith(WN_PREFIX)) return JSON.parse(window.name.slice(WN_PREFIX.length)) || {};
-      } catch (e) {}
-      return {};
-    }
-    function wnWrite(obj) {
-      try { window.name = WN_PREFIX + JSON.stringify(obj); } catch (e) {}
-    }
-
-    let persistentStorageOk = true;
-
-    const store = {
-      get(key) {
-        try { const v = window.localStorage.getItem(key); if (v !== null && v !== undefined) return v; } catch (e) {}
-        try { const v = window.sessionStorage.getItem(key); if (v !== null && v !== undefined) return v; } catch (e) {}
-        const wn = wnRead();
-        return Object.prototype.hasOwnProperty.call(wn, key) ? wn[key] : null;
-      },
-      set(key, value) {
-        value = String(value);
-        let ok = false;
-        try { window.localStorage.setItem(key, value); ok = true; } catch (e) {}
-        try { window.sessionStorage.setItem(key, value); ok = true; } catch (e) {}
-        if (!ok) persistentStorageOk = false;
-        if (key !== FALLBACK_KEY) {
-          const wn = wnRead(); wn[key] = value; wnWrite(wn);
+        const snap = await getDoc(prefsDocRef());
+        if (snap.exists()) {
+          const data = snap.data();
+          settings = { ...DEFAULT_SETTINGS, ...data };
+          if (!Array.isArray(settings.blockedUsers)) settings.blockedUsers = [];
+          applySettings();
         }
-      },
-      remove(key) {
-        try { window.localStorage.removeItem(key); } catch (e) {}
-        try { window.sessionStorage.removeItem(key); } catch (e) {}
-        const wn = wnRead(); delete wn[key]; wnWrite(wn);
+      } catch (e) {
+        console.warn('Не удалось загрузить настройки из облака:', e);
       }
-    };
-
-    const FALLBACK_KEY = 'hypergram_fallback_db_v2';
-    const SESSION_KEY = 'hypergram_session_v1';
-    const LAST_LOGIN_KEY = 'hypergram_last_login_v1';
-    const LAST_CHAT_KEY = 'hypergram_last_chat_v1';
-    const SETTINGS_KEY = 'hypergram_settings_v1';
-
-    let sessionRestoreDone = false;
-    let cloudSession = null;
-    let cloudUid = null;
-
-    function readJson(key, fallback) {
-      try {
-        const raw = store.get(key);
-        return raw ? JSON.parse(raw) : fallback;
-      } catch (e) { return fallback; }
     }
-    function writeJson(key, value) {
-      try { store.set(key, JSON.stringify(value)); } catch (e) {}
-    }
-    function removeKey(key) {
-      try { store.remove(key); } catch (e) {}
-    }
-
-    // Загрузка настроек
-    let settings = { ...DEFAULT_SETTINGS, ...readJson(SETTINGS_KEY, {}) };
-    if (!Array.isArray(settings.blockedUsers)) settings.blockedUsers = [];
 
     function saveSettings() {
-      writeJson(SETTINGS_KEY, settings);
       applySettings();
+      if (useCloud && db && auth?.currentUser && cloudUid) {
+        setDoc(prefsDocRef(), settings).catch(e => console.warn('Не удалось сохранить настройки в облаке:', e));
+      }
     }
 
     // Применение всех визуальных и функциональных настроек
@@ -716,45 +692,44 @@
       } catch (e) {}
     }
 
-    function sessionDocRef() {
-      return doc(db, 'artifacts', appId, 'public', 'data', 'hg_sessions', cloudUid);
-    }
-
+    // =========================================================
+    // УПРАВЛЕНИЕ СЕССИЕЙ
+    // =========================================================
     function saveSession(uid) {
-      const data = { userId: uid, loginAt: Date.now() };
-      writeJson(SESSION_KEY, data);
-      store.set(LAST_LOGIN_KEY, uid);
-      if (useCloud && db && cloudUid) {
-        cloudSession = data;
+      const data = { userId: uid, lastChatId: activeChatId, loginAt: Date.now() };
+      cloudSession = data;
+      if (useCloud && db && auth?.currentUser && cloudUid) {
         setDoc(sessionDocRef(), data).catch(e => console.warn('Не удалось сохранить сессию в облаке:', e));
       }
     }
+
     function clearSession() {
-      removeKey(SESSION_KEY);
       cloudSession = null;
-      if (useCloud && db && cloudUid) {
+      if (useCloud && db && auth?.currentUser && cloudUid) {
         deleteDoc(sessionDocRef()).catch(e => console.warn('Не удалось удалить сессию в облаке:', e));
       }
     }
+
     function saveLastChat() {
       if (!currentUserId || !activeChatId) return;
-      const map = readJson(LAST_CHAT_KEY, {});
-      map[currentUserId] = activeChatId;
-      writeJson(LAST_CHAT_KEY, map);
+      lastChatByUser[currentUserId] = activeChatId;
+      if (useCloud && db && auth?.currentUser && cloudUid) {
+        setDoc(sessionDocRef(), { userId: currentUserId, lastChatId: activeChatId, loginAt: Date.now() }).catch(() => {});
+      }
     }
+
     function getLastChat(uid) {
-      const id = readJson(LAST_CHAT_KEY, {})[uid];
+      const id = lastChatByUser[uid] || (cloudSession?.userId === uid ? cloudSession.lastChatId : null);
       return id && chatsMap[id] ? id : 'global_chat';
-    }
-    function prefillLastLogin() {
-      const last = store.get(LAST_LOGIN_KEY);
-      if (last) document.getElementById('authUsername').value = last;
     }
 
     function tryRestoreSession(authoritative = true) {
       if (sessionRestoreDone || currentUserId) return;
-      const session = cloudSession || readJson(SESSION_KEY, null);
-      if (!session || !session.userId) { sessionRestoreDone = true; return; }
+      const session = cloudSession;
+      if (!session || !session.userId) {
+        if (authoritative) sessionRestoreDone = true;
+        return;
+      }
       if (usersMap[session.userId]) {
         sessionRestoreDone = true;
         loginSuccess(session.userId, true);
@@ -764,27 +739,11 @@
       }
     }
 
-    function saveFallback() {
-      if (useCloud) return;
-      try {
-        store.set(FALLBACK_KEY, JSON.stringify({ usersMap, chatsMap, messagesList }));
-      } catch (e) {}
-    }
-
-    function loadFallback() {
-      try {
-        const raw = store.get(FALLBACK_KEY);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          usersMap = parsed.usersMap || {};
-          chatsMap = parsed.chatsMap || {};
-          messagesList = parsed.messagesList || [];
-        }
-      } catch (e) {}
-    }
-
+    // =========================================================
+    // ОПЕРАЦИИ С БАЗОЙ ДАННЫХ (FIRESTORE / ПАМЯТЬ)
+    // =========================================================
     async function dbSet(colName, docId, data) {
-      if (useCloud && db) {
+      if (useCloud && db && auth?.currentUser) {
         await setDoc(doc(db, 'artifacts', appId, 'public', 'data', colName, docId), data);
       } else {
         if (colName === 'hg_users') usersMap[docId] = data;
@@ -794,13 +753,12 @@
           if (idx > -1) messagesList[idx] = data;
           else messagesList.push(data);
         }
-        saveFallback();
         renderIfLoggedIn();
       }
     }
 
     async function dbUpdate(colName, docId, patch) {
-      if (useCloud && db) {
+      if (useCloud && db && auth?.currentUser) {
         await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', colName, docId), patch);
       } else {
         if (colName === 'hg_users' && usersMap[docId]) Object.assign(usersMap[docId], patch);
@@ -809,175 +767,205 @@
           const m = messagesList.find(x => x.id === docId);
           if (m) Object.assign(m, patch);
         }
-        saveFallback();
         renderIfLoggedIn();
       }
     }
 
     async function dbDelete(colName, docId) {
-      if (useCloud && db) {
+      if (useCloud && db && auth?.currentUser) {
         await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', colName, docId));
       } else {
         if (colName === 'hg_messages') messagesList = messagesList.filter(m => m.id !== docId);
-        saveFallback();
         renderIfLoggedIn();
       }
     }
 
     async function ensureSeedData() {
-      if (!usersMap['hypergram']) {
-        await dbSet('hg_users', 'hypergram', {
-          id: 'hypergram',
-          username: '@Hypergram',
-          displayName: 'Hypergram',
-          password: 'hyper2026',
-          role: 'admin',
-          avatarColor: 'from-sky-500 via-blue-500 to-indigo-600',
-          initials: 'HG',
-          bio: 'Официальный аккаунт команды HYPERGRAM.',
-          status: 'online',
-          badges: { verified: true, premium: true, staff: true, scam: false },
-          customTitle: 'Главный администратор',
-          banned: false,
-          createdAt: Date.now()
-        });
-      }
+      if (seedDone) return;
+      seedDone = true;
+      try {
+        if (!usersMap['hypergram']) {
+          await dbSet('hg_users', 'hypergram', {
+            id: 'hypergram',
+            username: '@Hypergram',
+            displayName: 'Hypergram',
+            password: 'hyper2026',
+            role: 'admin',
+            avatarColor: 'from-sky-500 via-blue-500 to-indigo-600',
+            initials: 'HG',
+            avatarUrl: '',
+            bio: 'Официальный аккаунт команды HYPERGRAM.',
+            status: 'online',
+            badges: { verified: true, premium: true, staff: true, scam: false },
+            customTitle: 'Главный администратор',
+            banned: false,
+            createdAt: Date.now()
+          });
+        }
 
-      if (!chatsMap['global_chat']) {
-        await dbSet('hg_chats', 'global_chat', {
-          id: 'global_chat',
-          type: 'group',
-          title: 'HYPERGRAM Общий чат',
-          description: 'Главный глобальный чат всех пользователей HYPERGRAM',
-          avatarColor: 'from-indigo-500 to-purple-600',
-          initials: '🌐',
-          badges: { verified: true, premium: false, staff: false, scam: false },
-          createdAt: Date.now()
-        });
-      }
+        if (!chatsMap['global_chat']) {
+          await dbSet('hg_chats', 'global_chat', {
+            id: 'global_chat',
+            type: 'group',
+            title: 'HYPERGRAM Общий чат',
+            description: 'Главный глобальный чат всех пользователей HYPERGRAM',
+            avatarColor: 'from-indigo-500 to-purple-600',
+            initials: '🌐',
+            badges: { verified: true, premium: false, staff: false, scam: false },
+            createdAt: Date.now()
+          });
+        }
 
-      if (!chatsMap['news_channel']) {
-        await dbSet('hg_chats', 'news_channel', {
-          id: 'news_channel',
-          type: 'channel',
-          title: 'Новости HYPERGRAM',
-          description: 'Официальный канал обновлений. Писать может только @Hypergram.',
-          avatarColor: 'from-sky-500 to-blue-600',
-          initials: '📢',
-          badges: { verified: true, premium: true, staff: true, scam: false },
-          createdAt: Date.now()
-        });
-      }
+        if (!chatsMap['news_channel']) {
+          await dbSet('hg_chats', 'news_channel', {
+            id: 'news_channel',
+            type: 'channel',
+            title: 'Новости HYPERGRAM',
+            description: 'Официальный канал обновлений. Писать может только @Hypergram.',
+            avatarColor: 'from-sky-500 to-blue-600',
+            initials: '📢',
+            badges: { verified: true, premium: true, staff: true, scam: false },
+            createdAt: Date.now()
+          });
+        }
 
-      const hasNews = messagesList.some(m => m.chatId === 'news_channel');
-      if (!hasNews) {
-        const msgId = 'welcome_news_1';
-        await dbSet('hg_messages', msgId, {
-          id: msgId,
-          chatId: 'news_channel',
-          senderId: 'hypergram',
-          text: 'Добро пожаловать в HYPERGRAM! Общайтесь в реальном времени, находите друзей по @username и настраивайте мессенджер под себя.',
-          replyToId: null,
-          reactions: { '🔥': ['hypergram'] },
-          timestamp: Date.now(),
-          readBy: ['hypergram']
-        });
+        const hasNews = messagesList.some(m => m.chatId === 'news_channel');
+        if (!hasNews) {
+          const msgId = 'welcome_news_1';
+          await dbSet('hg_messages', msgId, {
+            id: msgId,
+            chatId: 'news_channel',
+            senderId: 'hypergram',
+            text: 'Добро пожаловать в HYPERGRAM! Общайтесь в реальном времени, находите друзей по @username, загружайте свои аватарки и настраивайте мессенджер под себя.',
+            replyToId: null,
+            reactions: { '🔥': ['hypergram'] },
+            timestamp: Date.now(),
+            readBy: ['hypergram']
+          });
+        }
+      } catch (err) {
+        seedDone = false;
+        console.warn('Ошибка инициализации базовых данных:', err);
       }
     }
 
+    // =========================================================
+    // ПОДКЛЮЧЕНИЕ К FIREBASE FIRESTORE
+    // =========================================================
     async function initBackend() {
       const statusEl = document.getElementById('syncStatusBadge');
       try {
         if (typeof __firebase_config !== 'undefined' && __firebase_config) {
-          const FB = 'https://www.gstatic.com/firebasejs/11.6.1/';
-          const [appMod, authMod, fsMod] = await Promise.all([
-            import(FB + 'firebase-app.js'),
-            import(FB + 'firebase-auth.js'),
-            import(FB + 'firebase-firestore.js')
-          ]);
-          ({ initializeApp } = appMod);
-          ({ getAuth, signInAnonymously, signInWithCustomToken } = authMod);
-          ({ getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, collection, onSnapshot } = fsMod);
-
           const firebaseConfig = JSON.parse(__firebase_config);
           const app = initializeApp(firebaseConfig);
           auth = getAuth(app);
           db = getFirestore(app);
 
+          // Сначала аутентификация (приоритет кастомному токену)
           if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
             await signInWithCustomToken(auth, __initial_auth_token);
           } else {
             await signInAnonymously(auth);
           }
 
-          if (!auth.currentUser) throw new Error('Auth failed');
+          if (!auth.currentUser) throw new Error('Firebase auth failed');
           useCloud = true;
           cloudUid = auth.currentUser.uid;
 
+          // Загружаем облачную сессию и настройки пользователя
           try {
             const sessSnap = await getDoc(sessionDocRef());
             cloudSession = sessSnap.exists() ? sessSnap.data() : null;
           } catch (e) {
             cloudSession = null;
           }
+          await loadCloudPrefs();
+
           statusEl.textContent = '🟢 Подключено к облаку HYPERGRAM (Реальное время)';
-          if (auth.currentUser.isAnonymous && !persistentStorageOk) {
-            statusEl.textContent += ' ⚠️ Анонимный вход меняется при каждой загрузке';
-          }
 
-          onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'hg_users'), (snap) => {
-            const next = {};
-            snap.forEach(d => { next[d.id] = d.data(); });
-            usersMap = next;
-            ensureSeedData();
-            tryRestoreSession(!snap.metadata.fromCache);
-            renderIfLoggedIn();
-          }, (err) => console.error('Users sync error:', err));
+          // Подписки на коллекции (только простые collection(), сортировка в JS)
+          onSnapshot(
+            collection(db, 'artifacts', appId, 'public', 'data', 'hg_users'),
+            (snap) => {
+              const next = {};
+              snap.forEach(d => { next[d.id] = d.data(); });
+              usersMap = next;
+              if (!snap.metadata.fromCache || snap.size > 0) ensureSeedData();
+              tryRestoreSession(!snap.metadata.fromCache);
+              renderIfLoggedIn();
+            },
+            (err) => console.error('Users sync error:', err)
+          );
 
-          onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'hg_chats'), (snap) => {
-            const next = {};
-            snap.forEach(d => { next[d.id] = d.data(); });
-            chatsMap = next;
-            renderIfLoggedIn();
-          }, (err) => console.error('Chats sync error:', err));
+          onSnapshot(
+            collection(db, 'artifacts', appId, 'public', 'data', 'hg_chats'),
+            (snap) => {
+              const next = {};
+              snap.forEach(d => { next[d.id] = d.data(); });
+              chatsMap = next;
+              renderIfLoggedIn();
+            },
+            (err) => console.error('Chats sync error:', err)
+          );
 
-          onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'hg_messages'), (snap) => {
-            const next = [];
-            snap.forEach(d => { next.push(d.data()); });
-            next.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-            const hadMore = lastKnownMsgCount > 0 && next.length > lastKnownMsgCount;
-            const latest = next[next.length - 1];
-            messagesList = next;
-            lastKnownMsgCount = next.length;
-            if (hadMore && latest && latest.senderId !== currentUserId && !settings.blockedUsers.includes(latest.senderId)) {
-              playSound('receive');
-            }
-            renderIfLoggedIn();
-          }, (err) => console.error('Messages sync error:', err));
+          onSnapshot(
+            collection(db, 'artifacts', appId, 'public', 'data', 'hg_messages'),
+            (snap) => {
+              const next = [];
+              snap.forEach(d => { next.push(d.data()); });
+              next.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+              const hadMore = lastKnownMsgCount > 0 && next.length > lastKnownMsgCount;
+              const latest = next[next.length - 1];
+              messagesList = next;
+              lastKnownMsgCount = next.length;
+              if (hadMore && latest && latest.senderId !== currentUserId && !settings.blockedUsers.includes(latest.senderId)) {
+                playSound('receive');
+              }
+              renderIfLoggedIn();
+            },
+            (err) => console.error('Messages sync error:', err)
+          );
 
-          await ensureSeedData();
           return;
         }
       } catch (err) {
-        console.warn('Firebase недоступен, включен локальный режим:', err);
+        console.warn('Облачное подключение недоступно, включен автономный режим:', err);
       }
 
+      // Автономный режим в памяти (если конфиг сервера не передан окружением)
       useCloud = false;
-      loadFallback();
       await ensureSeedData();
       lastKnownMsgCount = messagesList.length;
-      statusEl.textContent = '🟡 Локальный режим (автосохранение в браузере)';
+      statusEl.textContent = '🟡 Автономный режим (данные текущей сессии)';
       tryRestoreSession(true);
-      if (!persistentStorageOk) {
-        statusEl.textContent += ' ⚠️ Хранилище браузера заблокировано';
-      }
     }
 
     // =========================================================
-    // УТИЛИТЫ И ЗНАЧКИ
+    // УТИЛИТЫ, АВАТАРКИ И ЗНАЧКИ
     // =========================================================
     function escapeHtml(str) {
       return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function avatarContent(avatarUrl, initials) {
+      if (avatarUrl && /^(data:image\/|https?:\/\/)/i.test(avatarUrl)) {
+        return `<img src="${escapeHtml(avatarUrl)}" alt="" class="w-full h-full object-cover" />`;
+      }
+      return escapeHtml(initials || '?');
+    }
+
+    function applyAvatarEl(el, entity, baseClasses) {
+      if (!el) return;
+      const hasImg = !!(entity?.avatarUrl && /^(data:image\/|https?:\/\/)/i.test(entity.avatarUrl));
+      const bg = hasImg ? 'bg-slate-800' : `bg-gradient-to-tr ${entity?.avatarColor || 'from-slate-500 to-slate-600'}`;
+      el.className = `${baseClasses} overflow-hidden ${bg}`;
+      el.innerHTML = avatarContent(entity?.avatarUrl, entity?.initials);
+    }
+
+    function avatarBoxHtml(entity, sizeClasses, extraAttrs = '') {
+      const hasImg = !!(entity?.avatarUrl && /^(data:image\/|https?:\/\/)/i.test(entity.avatarUrl));
+      const bg = hasImg ? 'bg-slate-800' : `bg-gradient-to-tr ${entity?.avatarColor || 'from-slate-500 to-slate-600'}`;
+      return `<div ${extraAttrs} class="${sizeClasses} overflow-hidden ${bg} flex items-center justify-center font-bold text-white flex-shrink-0">${avatarContent(entity?.avatarUrl, entity?.initials)}</div>`;
     }
 
     function formatTime(ts) {
@@ -1172,6 +1160,7 @@
           role: 'user',
           avatarColor: color,
           initials: initials,
+          avatarUrl: '',
           bio: '',
           status: 'online',
           badges: { verified: false, premium: false, staff: false, scam: false },
@@ -1219,7 +1208,7 @@
       closeDrawer();
       document.getElementById('app').classList.add('hidden');
       document.getElementById('authScreen').classList.remove('hidden');
-      prefillLastLogin();
+      if (uid) document.getElementById('authUsername').value = uid;
       showToast('Вы вышли из аккаунта');
     };
 
@@ -1247,14 +1236,12 @@
       document.getElementById('btnHeaderAdmin').classList.toggle('hidden', !admin);
       document.getElementById('drawerBtnAdmin').classList.toggle('hidden', !admin);
 
-      const bAv = document.getElementById('bottomUserAvatar');
-      bAv.className = `w-9 h-9 rounded-xl bg-gradient-to-tr ${u.avatarColor} flex items-center justify-center text-xs font-bold text-white flex-shrink-0`;
-      bAv.textContent = u.initials;
+      applyAvatarEl(document.getElementById('bottomUserAvatar'), u, 'w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold text-white flex-shrink-0');
       document.getElementById('bottomStatusDot').className = `w-2.5 h-2.5 rounded-full ${st.dot} border-2 border-white dark:border-[#161513] absolute -bottom-0.5 -right-0.5`;
       document.getElementById('bottomUserName').innerHTML = `<span class="truncate">${escapeHtml(u.displayName)}</span>${renderBadges(u.badges, true)}`;
       document.getElementById('bottomUserHandle').textContent = u.username;
 
-      document.getElementById('drawerAvatar').textContent = u.initials;
+      applyAvatarEl(document.getElementById('drawerAvatar'), u, 'w-14 h-14 rounded-2xl flex items-center justify-center text-xl font-bold text-white mb-3');
       document.getElementById('drawerName').innerHTML = `<span>${escapeHtml(u.displayName)}</span>${renderBadges(u.badges, true)}`;
       document.getElementById('drawerUsername').textContent = u.username;
       document.getElementById('drawerTitle').textContent = u.customTitle || u.bio || (admin ? 'Главный администратор' : 'Пользователь HYPERGRAM');
@@ -1270,6 +1257,7 @@
           title: peer.displayName,
           subtitle: peer.banned ? 'Заблокирован' : isBlocked ? 'В чёрном списке' : `${peer.username} • ${st.label}`,
           avatarColor: peer.avatarColor,
+          avatarUrl: peer.avatarUrl || '',
           initials: peer.initials,
           badges: peer.badges || {},
           peer: peer
@@ -1279,6 +1267,7 @@
         title: chat.title,
         subtitle: chat.type === 'channel' ? 'Официальный канал' : `Участников: ${Object.keys(usersMap).length}`,
         avatarColor: chat.avatarColor,
+        avatarUrl: chat.avatarUrl || '',
         initials: chat.initials,
         badges: chat.badges || {},
         peer: null
@@ -1320,7 +1309,7 @@
 
         return `
           <div onclick="selectChat('${c.id}')" class="hg-chat-row flex items-center gap-3 px-2.5 py-3 cursor-pointer transition border-b border-slate-200/80 dark:border-[#2e2b28] ${active ? 'hg-chat-active' : 'hover:bg-slate-100 dark:hover:bg-[#2a2724]'}">
-            <div class="w-11 h-11 rounded-2xl bg-gradient-to-tr ${meta.avatarColor} flex items-center justify-center font-bold text-white text-sm flex-shrink-0">${meta.initials}</div>
+            ${avatarBoxHtml(meta, 'w-11 h-11 rounded-2xl text-sm')}
             <div class="min-w-0 flex-1">
               <div class="flex items-center justify-between gap-1">
                 <div class="font-semibold text-sm truncate flex items-center gap-1">${escapeHtml(meta.title)}${renderBadges(meta.badges, true)}</div>
@@ -1341,7 +1330,7 @@
           html += `<div class="px-2 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider hg-accent-text">Пользователи (написать в ЛС)</div>`;
           html += foundUsers.map(u => `
             <div onclick="startDm('${u.id}')" class="flex items-center gap-3 p-2.5 rounded-2xl cursor-pointer hover:bg-slate-100 dark:hover:bg-[#2a2724] transition">
-              <div class="w-10 h-10 rounded-xl bg-gradient-to-tr ${u.avatarColor} flex items-center justify-center font-bold text-white text-xs flex-shrink-0">${u.initials}</div>
+              ${avatarBoxHtml(u, 'w-10 h-10 rounded-xl text-xs')}
               <div class="min-w-0 flex-1">
                 <div class="font-semibold text-sm truncate flex items-center gap-1">${escapeHtml(u.displayName)}${renderBadges(u.badges, true)}</div>
                 <div class="text-xs hg-accent-text">${escapeHtml(u.username)}</div>
@@ -1408,9 +1397,7 @@
       activeEl.classList.add('flex');
 
       const meta = getChatMeta(chat);
-      const av = document.getElementById('chatHeaderAvatar');
-      av.className = `w-10 h-10 rounded-xl bg-gradient-to-tr ${meta.avatarColor} flex items-center justify-center font-bold text-white text-sm flex-shrink-0`;
-      av.textContent = meta.initials;
+      applyAvatarEl(document.getElementById('chatHeaderAvatar'), meta, 'w-10 h-10 rounded-xl flex items-center justify-center font-bold text-white text-sm flex-shrink-0');
       document.getElementById('chatHeaderTitle').innerHTML = `<span class="truncate">${escapeHtml(meta.title)}</span>${renderBadges(meta.badges, false)}`;
       document.getElementById('chatHeaderStatus').textContent = meta.subtitle;
 
@@ -1448,7 +1435,6 @@
         const isOut = msg.senderId === currentUserId && chat.type !== 'channel';
         const sender = usersMap[msg.senderId] || { displayName: 'Пользователь', initials: '?', avatarColor: 'from-slate-500 to-slate-600', badges: {} };
 
-        // Скрытие сообщений от пользователей в чёрном списке
         if (!isOut && settings.blockedUsers.includes(msg.senderId)) {
           return `
             <div id="msg_${msg.id}" class="flex justify-start">
@@ -1496,7 +1482,7 @@
 
         return `
           <div id="msg_${msg.id}" class="flex items-end gap-2 ${isOut ? 'justify-end' : 'justify-start'} group msg-animate" oncontextmenu="openCtxMenu(event, '${msg.id}')" ondblclick="quickReactMsg('${msg.id}')">
-            ${showAvatar ? `<div onclick="openUserProfile('${sender.id}')" class="w-8 h-8 rounded-xl bg-gradient-to-tr ${sender.avatarColor} flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0 cursor-pointer">${sender.initials}</div>` : ''}
+            ${showAvatar ? avatarBoxHtml(sender, 'w-8 h-8 rounded-xl text-[11px] cursor-pointer', `onclick="openUserProfile('${sender.id}')"`) : ''}
             <div class="hg-bubble relative max-w-[85%] sm:max-w-[70%] px-3.5 py-2 ${isOut
               ? 'hg-bubble-out'
               : 'bg-white dark:bg-[#1e1c1a] text-slate-900 dark:text-slate-100 border border-slate-200/70 dark:border-[#2e2b28]'
@@ -1516,7 +1502,7 @@
     }
 
     // =========================================================
-    // ОТПРАВКА, РЕАКЦИИ, ОТВЕТЫ, УДАЛЕНИЕ
+    // ОТПРАВКА, РЕАКЦИИ, ОТВЕТЫ, КОПИРОВАНИЕ, УДАЛЕНИЕ
     // =========================================================
     window.sendMessage = async function() {
       const input = document.getElementById('messageInput');
@@ -1584,7 +1570,19 @@
       const msg = messagesList.find(m => m.id === ctxMsgId);
       document.getElementById('msgContextMenu').classList.add('hidden');
       if (!msg) return;
-      navigator.clipboard?.writeText(msg.text).then(() => showToast('Текст скопирован')).catch(() => showToast('Не удалось скопировать', 'error'));
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = msg.text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        showToast('Текст скопирован');
+      } catch (err) {
+        showToast('Не удалось скопировать', 'error');
+      }
     };
 
     window.toggleReaction = async function(msgId, emoji) {
@@ -1684,7 +1682,7 @@
 
         c.innerHTML = `
           <div class="text-center pt-2">
-            <div class="w-20 h-20 mx-auto rounded-3xl bg-gradient-to-tr ${u.avatarColor} flex items-center justify-center text-2xl font-bold text-white mb-3">${u.initials}</div>
+            ${avatarBoxHtml(u, 'w-20 h-20 mx-auto rounded-3xl text-2xl mb-3')}
             <div class="font-bold text-lg flex items-center justify-center gap-1.5 flex-wrap">${escapeHtml(u.displayName)}${renderBadges(b, false)}</div>
             <div class="text-xs hg-accent-text font-medium mt-0.5">${escapeHtml(u.username)}</div>
             <div class="inline-flex items-center gap-1.5 mt-1.5 text-[11px] text-slate-500 dark:text-[#8d887c]">
@@ -1727,7 +1725,7 @@
         if (!chat) return;
         c.innerHTML = `
           <div class="text-center pt-2">
-            <div class="w-20 h-20 mx-auto rounded-3xl bg-gradient-to-tr ${chat.avatarColor} flex items-center justify-center text-2xl font-bold text-white mb-3">${chat.initials}</div>
+            ${avatarBoxHtml(chat, 'w-20 h-20 mx-auto rounded-3xl text-2xl mb-3')}
             <div class="font-bold text-lg flex items-center justify-center gap-1.5">${escapeHtml(chat.title)}${renderBadges(chat.badges, false)}</div>
             <p class="text-xs text-slate-500 dark:text-[#8d887c] mt-2">${escapeHtml(chat.description || '')}</p>
           </div>
@@ -1774,6 +1772,18 @@
       renderSettingsModal();
     };
 
+    // Плавное изменение ползунков без сброса фокуса
+    window.setRangeSetting = function(key, val, labelId, suffix) {
+      settings[key] = val;
+      const lbl = document.getElementById(labelId);
+      if (lbl) lbl.textContent = val + suffix;
+      if (key === 'fontSize') document.documentElement.style.setProperty('--hg-msg-font', `${val}px`);
+      if (key === 'bubbleRadius') document.documentElement.style.setProperty('--hg-bubble-radius', `${val}px`);
+      if (useCloud && db && auth?.currentUser && cloudUid) {
+        setDoc(prefsDocRef(), settings).catch(() => {});
+      }
+    };
+
     function switchRow(key, title, desc) {
       const checked = !!settings[key];
       return `
@@ -1808,13 +1818,24 @@
         const curStatus = u.status || 'online';
         body.innerHTML = `
           <div class="space-y-5">
-            <!-- Превью профиля -->
-            <div class="p-4 rounded-2xl bg-slate-100 dark:bg-[#262421] border border-slate-200 dark:border-[#36322e] flex items-center gap-4">
-              <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr ${u.avatarColor} flex items-center justify-center text-xl font-bold text-white flex-shrink-0">${escapeHtml(u.initials)}</div>
-              <div class="min-w-0 flex-1">
-                <div class="font-bold text-base flex items-center gap-1.5 flex-wrap">${escapeHtml(u.displayName)}${renderBadges(u.badges, false)}</div>
-                <div class="text-xs hg-accent-text font-medium">${escapeHtml(u.username)}</div>
-                <div class="text-xs text-slate-500 dark:text-[#8d887c] mt-0.5 truncate">${escapeHtml(u.bio || 'Расскажите о себе...')}</div>
+            <!-- Превью профиля и загрузка аватарки -->
+            <div class="p-4 rounded-2xl bg-slate-100 dark:bg-[#262421] border border-slate-200 dark:border-[#36322e] space-y-3.5">
+              <div class="flex items-center gap-4">
+                <div onclick="triggerAvatarUpload()" title="Нажмите, чтобы загрузить аватарку" class="relative group cursor-pointer flex-shrink-0">
+                  ${avatarBoxHtml(u, 'w-16 h-16 rounded-2xl text-xl')}
+                  <div class="absolute inset-0 rounded-2xl bg-black/55 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[10px] font-bold uppercase tracking-wider">Фото</div>
+                </div>
+                <div class="min-w-0 flex-1">
+                  <div class="font-bold text-base flex items-center gap-1.5 flex-wrap">${escapeHtml(u.displayName)}${renderBadges(u.badges, false)}</div>
+                  <div class="text-xs hg-accent-text font-medium">${escapeHtml(u.username)}</div>
+                  <div class="text-xs text-slate-500 dark:text-[#8d887c] mt-0.5 truncate">${escapeHtml(u.bio || 'Расскажите о себе...')}</div>
+                </div>
+              </div>
+              <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-200 dark:border-[#36322e]">
+                <input id="avatarFileInput" type="file" accept="image/*" class="hidden" onchange="handleAvatarUpload(event)" />
+                <button type="button" onclick="triggerAvatarUpload()" class="px-3.5 py-2 rounded-xl hg-accent-bg text-white text-xs font-bold transition">Загрузить аватарку</button>
+                ${u.avatarUrl ? `<button type="button" onclick="removeCustomAvatar()" class="px-3.5 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 text-xs font-semibold transition">Удалить фото</button>` : ''}
+                <span class="text-[11px] text-slate-500 dark:text-[#8d887c]">JPG, PNG, WebP — автообрезка 256×256</span>
               </div>
             </div>
 
@@ -1850,7 +1871,7 @@
               </div>
 
               <div>
-                <label class="block text-xs font-semibold text-slate-500 dark:text-[#8d887c] mb-1.5">Цвет аватара</label>
+                <label class="block text-xs font-semibold text-slate-500 dark:text-[#8d887c] mb-1.5">Цвет аватара <span class="font-normal opacity-75">(если фото не загружено)</span></label>
                 <div class="flex flex-wrap gap-2">
                   ${AVATAR_GRADIENTS.map(g => `
                     <button type="button" onclick="saveAvatarColor('${g}')" class="w-9 h-9 rounded-xl bg-gradient-to-tr ${g} flex items-center justify-center text-white text-xs font-bold transition ${u.avatarColor === g ? 'ring-2 ring-offset-2 ring-offset-white dark:ring-offset-[#1a1917] ring-slate-900 dark:ring-white' : 'opacity-80 hover:opacity-100'}">
@@ -1881,7 +1902,7 @@
       if (settingsTab === 'appearance') {
         body.innerHTML = `
           <div class="space-y-5">
-            <!-- Превью чата -->
+            <!-- Живое превью чата -->
             <div class="p-4 rounded-2xl border border-slate-200 dark:border-[#36322e] ${settings.theme === 'dark' ? 'chat-wallpaper-dark' : 'chat-wallpaper-light'} wp-${settings.wallpaper} space-y-2">
               <div class="flex justify-start">
                 <div class="hg-bubble px-3 py-1.5 bg-white dark:bg-[#1e1c1a] text-slate-900 dark:text-slate-100 border border-slate-200/70 dark:border-[#2e2b28] max-w-[75%]">
@@ -1890,7 +1911,7 @@
               </div>
               <div class="flex justify-end">
                 <div class="hg-bubble hg-bubble-out px-3 py-1.5 max-w-[75%]">
-                  <div class="hg-msg-text">Выглядит отлично, настройки работают мгновенно!</div>
+                  <div class="hg-msg-text">Выглядит отлично, настройки и аватарки работают мгновенно!</div>
                 </div>
               </div>
             </div>
@@ -1941,17 +1962,17 @@
               <div class="p-3.5 rounded-2xl bg-slate-100/80 dark:bg-[#262421] border border-slate-200 dark:border-[#36322e]">
                 <div class="flex justify-between text-xs font-semibold mb-2">
                   <span>Размер шрифта сообщений</span>
-                  <span class="hg-accent-text">${settings.fontSize} px</span>
+                  <span id="lblFontSize" class="hg-accent-text">${settings.fontSize} px</span>
                 </div>
-                <input type="range" min="12" max="18" step="1" value="${settings.fontSize}" oninput="setSetting('fontSize', Number(this.value))" class="w-full accent-[#e2461f]" />
+                <input type="range" min="12" max="18" step="1" value="${settings.fontSize}" oninput="setRangeSetting('fontSize', Number(this.value), 'lblFontSize', ' px')" class="w-full hg-range" />
               </div>
 
               <div class="p-3.5 rounded-2xl bg-slate-100/80 dark:bg-[#262421] border border-slate-200 dark:border-[#36322e]">
                 <div class="flex justify-between text-xs font-semibold mb-2">
                   <span>Скругление пузырей</span>
-                  <span class="hg-accent-text">${settings.bubbleRadius} px</span>
+                  <span id="lblBubbleRadius" class="hg-accent-text">${settings.bubbleRadius} px</span>
                 </div>
-                <input type="range" min="0" max="16" step="2" value="${settings.bubbleRadius}" oninput="setSetting('bubbleRadius', Number(this.value))" class="w-full accent-[#e2461f]" />
+                <input type="range" min="0" max="16" step="2" value="${settings.bubbleRadius}" oninput="setRangeSetting('bubbleRadius', Number(this.value), 'lblBubbleRadius', ' px')" class="w-full hg-range" />
               </div>
             </div>
 
@@ -2004,9 +2025,9 @@
             <div class="p-4 rounded-2xl bg-slate-100/70 dark:bg-[#262421] border border-slate-200 dark:border-[#36322e] space-y-3">
               <div class="flex items-center justify-between text-xs font-semibold">
                 <span>Громкость звуков</span>
-                <span class="hg-accent-text">${settings.soundVolume}%</span>
+                <span id="lblSoundVol" class="hg-accent-text">${settings.soundVolume}%</span>
               </div>
-              <input type="range" min="0" max="100" step="5" value="${settings.soundVolume}" oninput="setSetting('soundVolume', Number(this.value))" class="w-full accent-[#e2461f]" />
+              <input type="range" min="0" max="100" step="5" value="${settings.soundVolume}" oninput="setRangeSetting('soundVolume', Number(this.value), 'lblSoundVol', '%')" class="w-full hg-range" />
               <div class="flex gap-2 pt-1">
                 <button onclick="testNotificationSound('send')" class="px-3.5 py-2 rounded-xl border border-slate-300 dark:border-[#36322e] hover:bg-slate-200/60 dark:hover:bg-[#2a2724] text-xs font-semibold transition">Проверить (отправка)</button>
                 <button onclick="testNotificationSound('receive')" class="px-3.5 py-2 rounded-xl border border-slate-300 dark:border-[#36322e] hover:bg-slate-200/60 dark:hover:bg-[#2a2724] text-xs font-semibold transition">Проверить (входящее)</button>
@@ -2056,7 +2077,7 @@
                   ${blockedList.map(bu => `
                     <div class="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-white dark:bg-[#1a1917] border border-slate-200 dark:border-[#36322e]">
                       <div class="flex items-center gap-2.5 min-w-0">
-                        <div class="w-8 h-8 rounded-lg bg-gradient-to-tr ${bu.avatarColor} flex items-center justify-center text-xs font-bold text-white flex-shrink-0">${bu.initials}</div>
+                        ${avatarBoxHtml(bu, 'w-8 h-8 rounded-lg text-xs')}
                         <div class="min-w-0">
                           <div class="text-xs font-semibold truncate">${escapeHtml(bu.displayName)}</div>
                           <div class="text-[11px] text-slate-500 dark:text-[#8d887c]">${escapeHtml(bu.username)}</div>
@@ -2097,7 +2118,7 @@
 
             <div class="p-4 rounded-2xl bg-slate-100/70 dark:bg-[#262421] border border-slate-200 dark:border-[#36322e] space-y-2.5">
               <div class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-[#8d887c]">Режим синхронизации</div>
-              <div class="text-sm font-semibold">${useCloud ? '🟢 Облако Firebase Firestore (реальное время)' : '🟡 Локальное хранилище браузера'}</div>
+              <div class="text-sm font-semibold">${useCloud ? '🟢 Облако HYPERGRAM (Реальное время)' : '🟡 Автономный режим'}</div>
               <div class="text-xs text-slate-500 dark:text-[#8d887c]">Приложение ID: <code class="px-1.5 py-0.5 rounded bg-black/10 dark:bg-white/10">${escapeHtml(appId)}</code></div>
             </div>
 
@@ -2135,6 +2156,64 @@
     window.saveAvatarColor = async function(avatarColor) {
       await dbUpdate('hg_users', currentUserId, { avatarColor });
       showToast('Цвет аватара обновлён', 'success');
+    };
+
+    window.triggerAvatarUpload = function() {
+      const inp = document.getElementById('avatarFileInput');
+      if (inp) {
+        inp.value = '';
+        inp.click();
+      }
+    };
+
+    window.handleAvatarUpload = function(e) {
+      const file = e.target?.files?.[0];
+      if (!file) return;
+      if (!file.type || !file.type.startsWith('image/')) {
+        showToast('Выберите файл изображения (JPG, PNG, WebP)', 'error');
+        return;
+      }
+      if (file.size > 15 * 1024 * 1024) {
+        showToast('Файл слишком большой (макс. 15 МБ)', 'error');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function(ev) {
+        const img = new Image();
+        img.onload = async function() {
+          try {
+            const size = 256;
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+
+            // Обрезка по центру в квадрат 256×256
+            const minSide = Math.min(img.width, img.height);
+            const sx = (img.width - minSide) / 2;
+            const sy = (img.height - minSide) / 2;
+            ctx.drawImage(img, sx, sy, minSide, minSide, 0, 0, size, size);
+
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.84);
+            await dbUpdate('hg_users', currentUserId, { avatarUrl: dataUrl });
+            showToast('Аватарка загружена!', 'success');
+          } catch (err) {
+            console.error(err);
+            showToast('Не удалось обработать изображение', 'error');
+          }
+        };
+        img.onerror = function() {
+          showToast('Не удалось прочитать изображение', 'error');
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    };
+
+    window.removeCustomAvatar = async function() {
+      await dbUpdate('hg_users', currentUserId, { avatarUrl: '' });
+      showToast('Фото удалено, возвращены инициалы');
     };
 
     window.changeUserPassword = async function() {
@@ -2253,7 +2332,7 @@
               <div class="p-3.5 rounded-2xl bg-slate-100/80 dark:bg-[#2a2724] border border-slate-200 dark:border-[#36322e] space-y-2.5">
                 <div class="flex items-center justify-between gap-2 flex-wrap">
                   <div class="flex items-center gap-2.5">
-                    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr ${u.avatarColor} flex items-center justify-center font-bold text-white text-xs">${u.initials}</div>
+                    ${avatarBoxHtml(u, 'w-10 h-10 rounded-xl text-xs')}
                     <div>
                       <div class="font-semibold text-sm flex items-center gap-1">${escapeHtml(u.displayName)}${renderBadges(b, true)}</div>
                       <div class="text-xs text-slate-500 dark:text-[#8d887c]">${escapeHtml(u.username)}</div>
@@ -2378,7 +2457,6 @@
     });
 
     document.addEventListener('keydown', (e) => {
-      // Ввод PIN с клавиатуры
       if (!document.getElementById('pinLockScreen').classList.contains('hidden')) {
         if (/^\d$/.test(e.key)) pinPress(e.key);
         else if (e.key === 'Backspace') pinBackspace();
@@ -2396,9 +2474,8 @@
       if (!e.target.closest('#emojiPopover') && !e.target.closest('#btnEmoji')) document.getElementById('emojiPopover').classList.add('hidden');
     });
 
-    // Запуск
+    // Запуск приложения
     applySettings();
-    prefillLastLogin();
     initBackend();
   </script>
 </body>
