@@ -570,6 +570,20 @@
     </div>
   </div>
 
+  <!-- КАСТОМНОЕ ОКНО ПОДТВЕРЖДЕНИЯ УДАЛЕНИЯ ЧАТА -->
+  <div id="confirmChatModal" onclick="closeConfirmChatModal()" class="hidden fixed inset-0 z-[75] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div onclick="event.stopPropagation()" class="w-full max-w-sm rounded-3xl bg-white dark:bg-[#1a1917] border border-slate-200 dark:border-[#36322e] shadow-2xl p-5 sm:p-6 space-y-4 msg-animate">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h3 id="confirmChatTitle" class="font-display font-bold text-lg leading-snug">Удалить чат?</h3>
+          <p id="confirmChatDesc" class="text-xs text-slate-500 dark:text-[#8d887c] mt-1 leading-relaxed"></p>
+        </div>
+        <button onclick="closeConfirmChatModal()" class="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-[#2a2724] text-xs text-slate-400">✕</button>
+      </div>
+      <div id="confirmChatActions" class="flex flex-col gap-2 pt-1"></div>
+    </div>
+  </div>
+
   <!-- ПРОСМОТР ФОТО ВО ВЕСЬ ЭКРАН (LIGHTBOX) -->
   <div id="mediaLightbox" onclick="closeMediaLightbox()" class="hidden fixed inset-0 z-[80] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
     <div onclick="event.stopPropagation()" class="relative max-w-4xl max-h-[90vh] flex flex-col items-center gap-3">
@@ -1514,7 +1528,16 @@
       const chat = chatsMap[chatId];
       if (!chat || isSystemChat(chat)) { showToast('Системный чат нельзя удалить', 'error'); return; }
       if (!isChatOwner(chat) && !isAdmin()) return;
-      if (!skipConfirm && !confirm(`Удалить «${chat.title}»? Это действие необратимо.`)) return;
+      if (!skipConfirm) {
+        document.getElementById('confirmChatTitle').textContent = `Удалить «${chat.title}»?`;
+        document.getElementById('confirmChatDesc').textContent = 'Чат будет безвозвратно удалён для всех участников.';
+        document.getElementById('confirmChatActions').innerHTML = `
+          <button type="button" onclick="confirmActionDeleteForAll('${chatId}')" class="w-full py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition">Удалить для всех</button>
+          <button type="button" onclick="closeConfirmChatModal()" class="w-full py-2 px-4 rounded-xl border border-slate-200 dark:border-[#36322e] hover:bg-slate-100 dark:hover:bg-[#2a2724] text-xs font-semibold text-slate-500 dark:text-[#8d887c] transition">Отмена</button>
+        `;
+        document.getElementById('confirmChatModal').classList.remove('hidden');
+        return;
+      }
       await dbDelete('hg_chats', chatId);
       closeInfoPanel();
       if (activeChatId === chatId) activeChatId = 'global_chat';
@@ -2191,6 +2214,9 @@
             const latest = next[next.length - 1];
             messagesList = next;
             lastKnownMsgCount = next.length;
+            if (hadMore && latest && latest.chatId && (settings.hiddenChats || []).includes(latest.chatId)) {
+              persistHiddenChats((settings.hiddenChats || []).filter(id => id !== latest.chatId));
+            }
             if (hadMore && latest && latest.senderId !== currentUserId && !settings.blockedUsers.includes(latest.senderId)) {
               playSound('receive');
             }
@@ -2618,25 +2644,9 @@
       }
     }
 
-    window.deleteChatFromList = async function(e, chatId) {
-      if (e) { e.preventDefault(); e.stopPropagation(); }
+    async function hideChatForMe(chatId) {
       const chat = chatsMap[chatId];
       if (!chat || !currentUserId) return;
-
-      if (!isSystemChat(chat) && isChatOwner(chat)) {
-        if (!confirm(`Удалить «${chat.title}» для всех участников?`)) return;
-        await deleteCustomChat(chatId, true);
-        return;
-      }
-
-      if (!isSystemChat(chat) && chat.type !== 'dm' && isChatMember(chat)) {
-        const choice = confirm(`Удалить «${chat.title}» из вашего списка чатов и выйти из него?\n(Нажмите «ОК» — выйти и убрать из списка, «Отмена» — просто скрыть из списка)`);
-        if (choice) {
-          await leaveChat(chatId);
-          return;
-        }
-      }
-
       const nextHidden = [...(settings.hiddenChats || []), chatId];
       await persistHiddenChats(nextHidden);
       if (activeChatId === chatId) {
@@ -2645,7 +2655,86 @@
         saveLastChat();
       }
       renderIfLoggedIn();
-      showToast(`Чат «${getChatMeta(chat).title}» удалён из списка`);
+      showToast(`Чат «${getChatMeta(chat).title}» удалён из вашего списка`);
+    }
+
+    window.closeConfirmChatModal = function() {
+      const m = document.getElementById('confirmChatModal');
+      if (m) m.classList.add('hidden');
+    };
+
+    window.confirmActionHideOnly = async function(chatId) {
+      closeConfirmChatModal();
+      await hideChatForMe(chatId);
+    };
+
+    window.confirmActionLeaveAndHide = async function(chatId) {
+      closeConfirmChatModal();
+      await leaveChat(chatId);
+    };
+
+    window.confirmActionDeleteForAll = async function(chatId) {
+      closeConfirmChatModal();
+      await deleteCustomChat(chatId, true);
+    };
+
+    window.deleteChatFromList = async function(e, chatId) {
+      if (e) { e.preventDefault(); e.stopPropagation(); }
+      const chat = chatsMap[chatId];
+      if (!chat || !currentUserId) return;
+
+      const meta = getChatMeta(chat);
+      const canDeleteAll = !isSystemChat(chat) && (isChatOwner(chat) || isChatAdmin(chat));
+      const canLeave = !isSystemChat(chat) && chat.type !== 'dm' && isChatMember(chat) && !isChatOwner(chat);
+
+      if (!canDeleteAll && !canLeave) {
+        await hideChatForMe(chatId);
+        return;
+      }
+
+      const titleEl = document.getElementById('confirmChatTitle');
+      const descEl = document.getElementById('confirmChatDesc');
+      const actionsEl = document.getElementById('confirmChatActions');
+
+      titleEl.textContent = `Удалить «${meta.title}»?`;
+      if (canDeleteAll) {
+        descEl.textContent = 'Выберите, удалить чат только из вашего списка чатов или полностью для всех участников.';
+      } else {
+        descEl.textContent = chat.type === 'channel'
+          ? 'Вы можете убрать канал только из вашего списка или отписаться от него.'
+          : 'Вы можете убрать группу только из вашего списка или выйти из неё.';
+      }
+
+      let btns = `
+        <button type="button" onclick="confirmActionHideOnly('${chatId}')" class="w-full py-2.5 px-4 rounded-xl hg-accent-bg text-white text-xs font-bold transition">
+          Удалить только из моего списка
+        </button>
+      `;
+
+      if (canLeave) {
+        btns += `
+          <button type="button" onclick="confirmActionLeaveAndHide('${chatId}')" class="w-full py-2.5 px-4 rounded-xl bg-red-500/15 hover:bg-red-500/25 text-red-500 text-xs font-bold transition">
+            ${chat.type === 'channel' ? 'Отписаться и удалить из списка' : 'Выйти из группы и удалить'}
+          </button>
+        `;
+      }
+
+      if (canDeleteAll) {
+        btns += `
+          <button type="button" onclick="confirmActionDeleteForAll('${chatId}')" class="w-full py-2.5 px-4 rounded-xl bg-red-500/15 hover:bg-red-500/25 text-red-500 text-xs font-bold transition">
+            Удалить для всех участников
+          </button>
+        `;
+      }
+
+      btns += `
+        <button type="button" onclick="closeConfirmChatModal()" class="w-full py-2 px-4 rounded-xl border border-slate-200 dark:border-[#36322e] hover:bg-slate-100 dark:hover:bg-[#2a2724] text-xs font-semibold text-slate-500 dark:text-[#8d887c] transition">
+          Отмена
+        </button>
+      `;
+
+      actionsEl.innerHTML = btns;
+      document.getElementById('confirmChatModal').classList.remove('hidden');
     };
 
     window.renderChatList = function() {
@@ -4204,6 +4293,7 @@
         return;
       }
       if (e.key === 'Escape') {
+        closeConfirmChatModal();
         closeMediaLightbox();
         closeCreateChatModal();
         closeSettingsModal();
