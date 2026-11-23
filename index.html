@@ -254,6 +254,13 @@
           <span class="uppercase tracking-wider text-[10px] font-bold">Админ</span>
         </button>
 
+        <!-- Кнопка создания чата / канала -->
+        <button onclick="openCreateChatModal()" title="Создать чат или канал" class="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-[#2a2724] hg-accent-text transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+          </svg>
+        </button>
+
         <!-- Кнопка Настроек -->
         <button onclick="openSettingsModal()" title="Настройки" class="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-[#2a2724] text-slate-500 dark:text-slate-300 transition">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -283,7 +290,10 @@
         </div>
       </div>
 
-      <!-- Список чатов + результаты поиска пользователей -->
+      <!-- Вкладки фильтрации чатов -->
+      <div id="chatFilterTabs" class="px-3 pb-2 flex items-center gap-1 overflow-x-auto custom-scroll"></div>
+
+      <!-- Список чатов + результаты поиска пользователей и каналов -->
       <div id="chatList" class="flex-1 overflow-y-auto custom-scroll p-2 space-y-1"></div>
 
       <!-- Нижняя панель профиля -->
@@ -333,12 +343,37 @@
               </div>
             </div>
           </div>
-          <button onclick="openChatInfoPanel()" title="Информация" class="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-[#2a2724] text-slate-500 dark:text-slate-300">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
-          </button>
+          <div class="flex items-center gap-1 flex-shrink-0">
+            <button onclick="toggleChatSearch()" title="Поиск по сообщениям" class="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-[#2a2724] text-slate-500 dark:text-slate-300 transition">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+              </svg>
+            </button>
+            <button onclick="openChatInfoPanel()" title="Информация" class="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-[#2a2724] text-slate-500 dark:text-slate-300 transition">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+            </button>
+          </div>
         </header>
+
+        <!-- Поиск внутри чата -->
+        <div id="inChatSearchBar" class="hidden px-3 py-2 bg-white dark:bg-[#1a1917] border-b border-slate-200 dark:border-[#2e2b28] flex items-center gap-2 flex-shrink-0">
+          <input id="inChatSearchInput" type="search" autocomplete="off" oninput="updateInChatSearch(this.value)" placeholder="Поиск по сообщениям в этом чате..." class="flex-1 px-3 py-1.5 text-xs rounded-xl bg-slate-100 dark:bg-[#262421] focus:outline-none" />
+          <span id="inChatSearchCount" class="text-[11px] text-slate-500 dark:text-[#8d887c] whitespace-nowrap"></span>
+          <button onclick="stepInChatSearch(-1)" title="Предыдущее" class="px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-[#2a2724] text-xs">↑</button>
+          <button onclick="stepInChatSearch(1)" title="Следующее" class="px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-[#2a2724] text-xs">↓</button>
+          <button onclick="toggleChatSearch(false)" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-[#2a2724] text-xs text-slate-400">✕</button>
+        </div>
+
+        <!-- Закреплённое сообщение -->
+        <div id="pinnedBanner" class="hidden px-3 sm:px-4 py-2 bg-white/95 dark:bg-[#1a1917]/95 border-b border-slate-200 dark:border-[#2e2b28] flex items-center justify-between gap-2 flex-shrink-0">
+          <div onclick="jumpToPinned()" class="border-l-2 hg-accent-border pl-2.5 min-w-0 flex-1 cursor-pointer hover:opacity-85 transition">
+            <div class="text-[10px] font-bold uppercase tracking-wider hg-accent-text">Закреплённое сообщение</div>
+            <div id="pinnedBannerText" class="text-xs text-slate-700 dark:text-slate-200 truncate"></div>
+          </div>
+          <button id="btnUnpinBanner" onclick="unpinCurrentChatMessage()" title="Открепить" class="hidden p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-[#2a2724] text-xs text-slate-400">✕</button>
+        </div>
 
         <!-- Лента сообщений -->
         <div id="messagesContainer" class="flex-1 overflow-y-auto custom-scroll px-3 sm:px-6 py-4 space-y-2 chat-wallpaper-dark wp-lines select-text"></div>
@@ -354,7 +389,12 @@
 
         <!-- Поле ввода -->
         <div class="p-2.5 sm:p-3 bg-white dark:bg-[#1a1917] border-t border-slate-200 dark:border-[#2e2b28] relative flex-shrink-0">
-          <!-- Баннер ограничения (Бан / Канал / ЧС) -->
+          <!-- Кнопка вступления / подписки на публичный чат или канал -->
+          <div id="composerJoinBar" class="hidden flex items-center justify-center">
+            <button id="btnComposerJoin" onclick="joinActiveChat()" class="w-full py-2.5 px-4 rounded-xl hg-accent-bg text-white text-xs sm:text-sm font-bold transition"></button>
+          </div>
+
+          <!-- Баннер ограничения (Бан / Канал / ЧС / Мут / Slow Mode) -->
           <div id="composerRestriction" class="hidden py-2.5 px-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-500 text-xs sm:text-sm font-medium text-center"></div>
 
           <div id="composerControls" class="flex items-end gap-2">
@@ -396,6 +436,10 @@
           <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
           <span>Админ-панель</span>
         </button>
+        <button onclick="closeDrawer(); openCreateChatModal();" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-[#2a2724] text-sm font-semibold hg-accent-text transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+          <span>Создать чат или канал</span>
+        </button>
         <button onclick="closeDrawer(); openSettingsModal('profile');" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-[#2a2724] text-sm font-medium transition">
           <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
           <span>Мой профиль</span>
@@ -431,6 +475,7 @@
       </div>
       <button onclick="ctxReply()" class="w-full flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-[#2e2b28] text-xs font-medium text-left">Ответить</button>
       <button onclick="ctxCopy()" class="w-full flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-[#2e2b28] text-xs font-medium text-left">Копировать текст</button>
+      <button id="ctxBtnPin" onclick="ctxTogglePin()" class="hidden w-full flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-[#2e2b28] text-xs font-medium text-left">Закрепить</button>
       <button id="ctxBtnDelete" onclick="ctxDelete()" class="w-full flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-red-500/10 text-red-500 text-xs font-medium text-left">Удалить</button>
     </div>
 
@@ -480,12 +525,40 @@
           <button onclick="closeAdminModal()" class="p-2 rounded-xl hover:bg-slate-200/70 dark:hover:bg-[#2a2724]">✕</button>
         </div>
 
-        <div class="px-4 pt-3 pb-2 border-b border-slate-200 dark:border-[#2e2b28] flex gap-2">
+        <div class="px-4 pt-3 pb-2 border-b border-slate-200 dark:border-[#2e2b28] flex flex-wrap gap-2">
           <button id="adminTabUsers" onclick="setAdminTab('users')" class="px-3.5 py-2 rounded-xl text-xs font-semibold hg-accent-bg text-white">Пользователи и галочки</button>
+          <button id="adminTabChats" onclick="setAdminTab('chats')" class="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-500 dark:text-[#8d887c] hover:bg-slate-100 dark:hover:bg-[#2a2724]">Чаты и каналы</button>
           <button id="adminTabBroadcast" onclick="setAdminTab('broadcast')" class="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-500 dark:text-[#8d887c] hover:bg-slate-100 dark:hover:bg-[#2a2724]">Рассылка в Новости</button>
         </div>
 
         <div id="adminModalBody" class="flex-1 overflow-y-auto custom-scroll p-4 space-y-3"></div>
+      </div>
+    </div>
+
+
+    <!-- =========================================================
+         МОДАЛЬНОЕ ОКНО: СОЗДАНИЕ ЧАТА / КАНАЛА И ВХОД ПО КОДУ
+    ========================================================== -->
+    <div id="createChatModal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
+      <div class="w-full max-w-xl max-h-[90vh] rounded-3xl bg-white dark:bg-[#1a1917] border border-slate-200 dark:border-[#36322e] shadow-2xl flex flex-col overflow-hidden msg-animate">
+        <div class="px-5 py-4 bg-slate-100 dark:bg-[#262421] border-b border-slate-200 dark:border-[#2e2b28] flex items-center justify-between flex-shrink-0">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl hg-accent-bg flex items-center justify-center text-white font-display font-extrabold text-xl">+</div>
+            <div>
+              <h3 class="font-display font-bold text-lg leading-tight">Создать или вступить</h3>
+              <p class="text-xs text-slate-500 dark:text-[#8d887c]">Новая группа, канал или вход по приглашению</p>
+            </div>
+          </div>
+          <button onclick="closeCreateChatModal()" class="p-2 rounded-xl hover:bg-slate-200/70 dark:hover:bg-[#2a2724] text-sm">✕</button>
+        </div>
+
+        <div class="px-4 pt-3 pb-2 border-b border-slate-200 dark:border-[#2e2b28] flex gap-1.5 flex-shrink-0">
+          <button id="ccTabGroup" onclick="setCreateChatTab('group')" class="px-3.5 py-2 rounded-xl text-xs font-semibold hg-accent-bg text-white transition">Группа (чат)</button>
+          <button id="ccTabChannel" onclick="setCreateChatTab('channel')" class="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-500 dark:text-[#8d887c] hover:bg-slate-100 dark:hover:bg-[#2a2724] transition">Канал</button>
+          <button id="ccTabJoin" onclick="setCreateChatTab('join')" class="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-500 dark:text-[#8d887c] hover:bg-slate-100 dark:hover:bg-[#2a2724] transition">Войти по коду</button>
+        </div>
+
+        <div id="createChatBody" class="flex-1 overflow-y-auto custom-scroll p-4 sm:p-5 space-y-4"></div>
       </div>
     </div>
 
@@ -833,6 +906,642 @@
       });
     }
 
+
+    // =========================================================
+    // СИСТЕМА КАНАЛОВ И ГРУППОВЫХ ЧАТОВ
+    // =========================================================
+    const SYSTEM_CHAT_IDS = ['global_chat', 'news_channel'];
+    const CHAT_ICON_PRESETS = ['💬','📢','🚀','⚡','🔥','🎮','🎵','💻','🌍','🎨','📚','🛡️'];
+    const SLOW_MODE_OPTIONS = [
+      { sec: 0,  label: 'Выкл' },
+      { sec: 5,  label: '5 сек' },
+      { sec: 15, label: '15 сек' },
+      { sec: 30, label: '30 сек' },
+      { sec: 60, label: '1 мин' }
+    ];
+
+    let chatFilter = 'all'; // 'all' | 'dm' | 'group' | 'channel'
+    let createChatTab = 'group';
+    let createChatDraft = {
+      title: '', handle: '', description: '', isPublic: true,
+      avatarColor: 'from-indigo-500 to-purple-600', initials: '💬', avatarUrl: '',
+      signPosts: true, slowModeSec: 0, selectedMembers: [], memberSearch: ''
+    };
+    let infoPanelMode = 'overview'; // 'overview' | 'edit' | 'members'
+    let inChatSearchOpen = false;
+    let inChatSearchQuery = '';
+    let inChatSearchMatches = [];
+    let inChatSearchIdx = 0;
+    const slowModeLastSent = {}; // { chatId: timestamp }
+    const viewedPostIds = new Set();
+
+    function generateInviteCode() {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let code = 'HG-';
+      for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+      return code;
+    }
+
+    function normalizeHandle(raw) {
+      return String(raw || '').trim().replace(/^@+/, '').toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 24);
+    }
+
+    function isSystemChat(chat) {
+      return !!(chat && SYSTEM_CHAT_IDS.includes(chat.id));
+    }
+
+    function isChatMember(chat, uid = currentUserId) {
+      if (!chat || !uid) return false;
+      if (isSystemChat(chat)) return true;
+      if (chat.type === 'dm') return (chat.participants || []).includes(uid);
+      if (chat.ownerId === uid) return true;
+      if (Array.isArray(chat.admins) && chat.admins.includes(uid)) return true;
+      if (Array.isArray(chat.members)) return chat.members.includes(uid);
+      return true;
+    }
+
+    function isChatOwner(chat, uid = currentUserId) {
+      return !!(chat && uid && chat.ownerId === uid);
+    }
+
+    function isChatAdmin(chat, uid = currentUserId) {
+      if (!chat || !uid) return false;
+      if (isAdmin() && uid === currentUserId) return true;
+      if (chat.ownerId === uid) return true;
+      if (Array.isArray(chat.admins) && chat.admins.includes(uid)) return true;
+      return false;
+    }
+
+    function canWriteToChat(chat, uid = currentUserId) {
+      if (!chat || !uid) return { ok: false, reason: '' };
+      const u = usersMap[uid];
+      if (u?.banned) return { ok: false, reason: '🚫 Ваш аккаунт заблокирован администратором @Hypergram.' };
+      if (chat.type === 'dm') {
+        const peerId = (chat.participants || []).find(id => id !== uid);
+        if (peerId && settings.blockedUsers.includes(peerId)) {
+          return { ok: false, reason: 'Вы добавили этого пользователя в чёрный список. Разблокируйте его в профиле или настройках, чтобы писать.' };
+        }
+        return { ok: true, reason: '' };
+      }
+      if (!isChatMember(chat, uid)) {
+        return { ok: false, reason: 'NOT_MEMBER' };
+      }
+      if (chat.type === 'channel') {
+        if (chat.id === 'news_channel') {
+          return isAdmin() ? { ok: true, reason: '' } : { ok: false, reason: '📢 Писать в канал «Новости HYPERGRAM» может только администратор Hypergram.' };
+        }
+        return isChatAdmin(chat, uid)
+          ? { ok: true, reason: '' }
+          : { ok: false, reason: '📢 Публиковать посты в этом канале могут только его администраторы.' };
+      }
+      // Group chat checks
+      if (Array.isArray(chat.muted) && chat.muted.includes(uid) && !isChatAdmin(chat, uid)) {
+        return { ok: false, reason: '🔇 Администратор ограничил вам отправку сообщений в этой группе.' };
+      }
+      if (chat.adminsOnly && !isChatAdmin(chat, uid)) {
+        return { ok: false, reason: '🔒 Включён режим «Только администраторы могут писать».' };
+      }
+      return { ok: true, reason: '' };
+    }
+
+    function getChatMemberCount(chat) {
+      if (!chat) return 0;
+      if (isSystemChat(chat)) return Object.keys(usersMap).length;
+      if (Array.isArray(chat.members)) return chat.members.length;
+      return Object.keys(usersMap).length;
+    }
+
+    function markChannelPostsViewed(chat, msgs) {
+      if (!chat || chat.type !== 'channel' || !currentUserId || document.hidden) return;
+      msgs.slice(-20).forEach(m => {
+        if (viewedPostIds.has(m.id)) return;
+        const views = Array.isArray(m.views) ? m.views : [];
+        if (views.includes(currentUserId)) { viewedPostIds.add(m.id); return; }
+        viewedPostIds.add(m.id);
+        dbUpdate('hg_messages', m.id, { views: Array.from(new Set([...views, currentUserId])) }).catch(() => viewedPostIds.delete(m.id));
+      });
+    }
+
+    // ---------- Модалка создания чата / канала / входа по коду ----------
+    window.openCreateChatModal = function(tab = 'group') {
+      createChatTab = tab;
+      createChatDraft = {
+        title: '', handle: '', description: '', isPublic: true,
+        avatarColor: tab === 'channel' ? 'from-sky-500 to-blue-600' : 'from-indigo-500 to-purple-600',
+        initials: tab === 'channel' ? '📢' : '💬',
+        avatarUrl: '', signPosts: true, slowModeSec: 0, selectedMembers: [], memberSearch: ''
+      };
+      document.getElementById('createChatModal').classList.remove('hidden');
+      renderCreateChatModal();
+    };
+
+    window.closeCreateChatModal = function() {
+      document.getElementById('createChatModal').classList.add('hidden');
+    };
+
+    window.setCreateChatTab = function(tab) {
+      createChatTab = tab;
+      if (tab === 'channel' && createChatDraft.initials === '💬') createChatDraft.initials = '📢';
+      if (tab === 'group' && createChatDraft.initials === '📢') createChatDraft.initials = '💬';
+      renderCreateChatModal();
+    };
+
+    window.ccUpdateDraft = function(key, val) {
+      createChatDraft[key] = val;
+    };
+
+    window.ccToggleMember = function(uid) {
+      const idx = createChatDraft.selectedMembers.indexOf(uid);
+      if (idx > -1) createChatDraft.selectedMembers.splice(idx, 1);
+      else createChatDraft.selectedMembers.push(uid);
+      renderCreateChatModal();
+    };
+
+    window.ccTriggerAvatar = function() {
+      const inp = document.getElementById('ccAvatarInput');
+      if (inp) { inp.value = ''; inp.click(); }
+    };
+
+    window.ccHandleAvatarUpload = function(e) {
+      const file = e.target?.files?.[0];
+      if (!file || !file.type?.startsWith('image/')) { showToast('Выберите изображение', 'error'); return; }
+      const reader = new FileReader();
+      reader.onload = ev => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = 256; canvas.height = 256;
+          const ctx = canvas.getContext('2d');
+          const s = Math.min(img.width, img.height);
+          ctx.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, 256, 256);
+          createChatDraft.avatarUrl = canvas.toDataURL('image/jpeg', 0.84);
+          renderCreateChatModal();
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    };
+
+    function renderCreateChatModal() {
+      const tabs = [
+        ['ccTabGroup', 'group'],
+        ['ccTabChannel', 'channel'],
+        ['ccTabJoin', 'join']
+      ];
+      tabs.forEach(([id, key]) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.className = createChatTab === key
+          ? 'px-3.5 py-2 rounded-xl text-xs font-semibold hg-accent-bg text-white transition'
+          : 'px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-500 dark:text-[#8d887c] hover:bg-slate-100 dark:hover:bg-[#2a2724] transition';
+      });
+
+      const body = document.getElementById('createChatBody');
+      if (createChatTab === 'join') {
+        const publicDiscover = Object.values(chatsMap).filter(c =>
+          (c.type === 'group' || c.type === 'channel') && c.isPublic && !isChatMember(c)
+        );
+        body.innerHTML = `
+          <div class="space-y-4">
+            <div class="p-4 rounded-2xl bg-slate-100 dark:bg-[#262421] border border-slate-200 dark:border-[#36322e] space-y-3">
+              <div class="text-sm font-semibold">Вход по инвайт-коду или @тегу</div>
+              <div class="text-xs text-slate-500 dark:text-[#8d887c]">Введите код приглашения (например, <code>HG-7K9P2Q</code>) или публичный <code>@тег</code> чата/канала.</div>
+              <div class="flex gap-2">
+                <input id="joinCodeInput" type="text" placeholder="HG-XXXXXX или @channel" class="flex-1 px-3.5 py-2.5 rounded-xl bg-white dark:bg-[#1a1917] border border-slate-200 dark:border-[#36322e] text-sm focus:outline-none" />
+                <button onclick="joinByCodeOrHandle()" class="px-4 py-2.5 rounded-xl hg-accent-bg text-white text-xs font-bold transition">Войти</button>
+              </div>
+            </div>
+
+            ${publicDiscover.length ? `
+              <div class="space-y-2">
+                <div class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-[#8d887c]">Открытые чаты и каналы (${publicDiscover.length})</div>
+                ${publicDiscover.map(c => `
+                  <div class="p-3 rounded-2xl bg-slate-100/80 dark:bg-[#262421] border border-slate-200 dark:border-[#36322e] flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-3 min-w-0">
+                      ${avatarBoxHtml(c, 'w-10 h-10 rounded-xl text-sm')}
+                      <div class="min-w-0">
+                        <div class="text-sm font-semibold truncate flex items-center gap-1">${escapeHtml(c.title)}${renderBadges(c.badges, true)}</div>
+                        <div class="text-[11px] text-slate-500 dark:text-[#8d887c] truncate">${c.type === 'channel' ? 'Канал' : 'Группа'}${c.handle ? ' • @' + escapeHtml(c.handle) : ''} • ${getChatMemberCount(c)} уч.</div>
+                      </div>
+                    </div>
+                    <button onclick="joinChatById('${c.id}'); closeCreateChatModal();" class="px-3.5 py-2 rounded-xl hg-accent-bg text-white text-xs font-bold flex-shrink-0 transition">${c.type === 'channel' ? 'Подписаться' : 'Вступить'}</button>
+                  </div>
+                `).join('')}
+              </div>
+            ` : `<div class="text-center py-6 text-xs text-slate-500 dark:text-[#8d887c]">Вы уже состоите во всех публичных чатах и каналах, либо новых пока нет.</div>`}
+          </div>
+        `;
+        return;
+      }
+
+      const isChannel = createChatTab === 'channel';
+      const d = createChatDraft;
+      const mq = (d.memberSearch || '').toLowerCase();
+      const otherUsers = Object.values(usersMap).filter(u =>
+        u.id !== currentUserId &&
+        (!mq || u.displayName.toLowerCase().includes(mq) || u.username.toLowerCase().includes(mq))
+      );
+
+      body.innerHTML = `
+        <div class="space-y-4">
+          <!-- Превью + аватар -->
+          <div class="p-3.5 rounded-2xl bg-slate-100 dark:bg-[#262421] border border-slate-200 dark:border-[#36322e] space-y-3">
+            <div class="flex items-center gap-3.5">
+              <div onclick="ccTriggerAvatar()" title="Загрузить фото" class="relative group cursor-pointer flex-shrink-0">
+                ${avatarBoxHtml(d, 'w-14 h-14 rounded-2xl text-xl')}
+                <div class="absolute inset-0 rounded-2xl bg-black/55 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[9px] font-bold uppercase">Фото</div>
+              </div>
+              <div class="min-w-0 flex-1 space-y-1.5">
+                <input id="ccAvatarInput" type="file" accept="image/*" class="hidden" onchange="ccHandleAvatarUpload(event)" />
+                <div class="flex flex-wrap gap-1.5">
+                  <button type="button" onclick="ccTriggerAvatar()" class="px-3 py-1.5 rounded-xl hg-accent-bg text-white text-[11px] font-bold transition">Загрузить фото</button>
+                  ${d.avatarUrl ? `<button type="button" onclick="ccUpdateDraft('avatarUrl',''); renderCreateChatModal();" class="px-3 py-1.5 rounded-xl bg-red-500/10 text-red-500 text-[11px] font-semibold">Убрать</button>` : ''}
+                </div>
+                <div class="flex flex-wrap gap-1">
+                  ${CHAT_ICON_PRESETS.map(ic => `<button type="button" onclick="ccUpdateDraft('initials','${ic}'); ccUpdateDraft('avatarUrl',''); renderCreateChatModal();" class="w-7 h-7 rounded-lg text-sm flex items-center justify-center border ${!d.avatarUrl && d.initials === ic ? 'hg-accent-border hg-accent-soft' : 'border-transparent hover:bg-slate-200 dark:hover:bg-[#322f2b]'}">${ic}</button>`).join('')}
+                </div>
+              </div>
+            </div>
+            <div class="flex flex-wrap gap-1.5 pt-2 border-t border-slate-200 dark:border-[#36322e]">
+              ${AVATAR_GRADIENTS.map(g => `<button type="button" onclick="ccUpdateDraft('avatarColor','${g}'); renderCreateChatModal();" class="w-7 h-7 rounded-lg bg-gradient-to-tr ${g} ${d.avatarColor === g ? 'ring-2 ring-slate-900 dark:ring-white' : 'opacity-75'}"></button>`).join('')}
+            </div>
+          </div>
+
+          <!-- Название, тег, описание -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 dark:text-[#8d887c] mb-1">${isChannel ? 'Название канала' : 'Название группы'} *</label>
+              <input type="text" maxlength="48" value="${escapeHtml(d.title)}" oninput="ccUpdateDraft('title', this.value)" placeholder="${isChannel ? 'Например: Технологии дня' : 'Например: Команда проекта'}" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-[#262421] border border-slate-200 dark:border-[#36322e] text-sm focus:outline-none" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 dark:text-[#8d887c] mb-1">Публичный @тег (необязательно)</label>
+              <input type="text" maxlength="25" value="${escapeHtml(d.handle)}" oninput="ccUpdateDraft('handle', this.value)" placeholder="@my_channel" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-[#262421] border border-slate-200 dark:border-[#36322e] text-sm focus:outline-none" />
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 dark:text-[#8d887c] mb-1">Описание</label>
+            <textarea rows="2" maxlength="200" oninput="ccUpdateDraft('description', this.value)" placeholder="О чём этот ${isChannel ? 'канал' : 'чат'}..." class="w-full px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-[#262421] border border-slate-200 dark:border-[#36322e] text-sm resize-none focus:outline-none">${escapeHtml(d.description)}</textarea>
+          </div>
+
+          <!-- Приватность и опции -->
+          <div class="grid grid-cols-2 gap-2">
+            <button type="button" onclick="ccUpdateDraft('isPublic', true); renderCreateChatModal();" class="p-3 rounded-xl border text-left transition ${d.isPublic ? 'hg-accent-border hg-accent-soft' : 'border-slate-200 dark:border-[#36322e]'}">
+              <div class="text-xs font-bold">Публичный</div>
+              <div class="text-[11px] text-slate-500 dark:text-[#8d887c] mt-0.5">Виден в поиске всем</div>
+            </button>
+            <button type="button" onclick="ccUpdateDraft('isPublic', false); renderCreateChatModal();" class="p-3 rounded-xl border text-left transition ${!d.isPublic ? 'hg-accent-border hg-accent-soft' : 'border-slate-200 dark:border-[#36322e]'}">
+              <div class="text-xs font-bold">Приватный</div>
+              <div class="text-[11px] text-slate-500 dark:text-[#8d887c] mt-0.5">Только по коду / приглашению</div>
+            </button>
+          </div>
+
+          ${isChannel ? `
+            <div class="flex items-center justify-between p-3 rounded-xl bg-slate-100 dark:bg-[#262421] border border-slate-200 dark:border-[#36322e]">
+              <div>
+                <div class="text-xs font-semibold">Подписывать посты именем автора</div>
+                <div class="text-[11px] text-slate-500 dark:text-[#8d887c]">Показывать, кто из админов опубликовал запись</div>
+              </div>
+              <button type="button" role="switch" aria-checked="${!!d.signPosts}" onclick="ccUpdateDraft('signPosts', !createChatDraft.signPosts); renderCreateChatModal();" class="hg-switch"></button>
+            </div>
+          ` : `
+            <div class="p-3 rounded-xl bg-slate-100 dark:bg-[#262421] border border-slate-200 dark:border-[#36322e] space-y-2">
+              <div class="text-xs font-semibold">Медленный режим (Slow Mode)</div>
+              <div class="flex flex-wrap gap-1.5">
+                ${SLOW_MODE_OPTIONS.map(o => `<button type="button" onclick="ccUpdateDraft('slowModeSec', ${o.sec}); renderCreateChatModal();" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold border ${d.slowModeSec === o.sec ? 'hg-accent-border hg-accent-soft hg-accent-text' : 'border-slate-300 dark:border-[#36322e]'}">${o.label}</button>`).join('')}
+              </div>
+            </div>
+          `}
+
+          <!-- Выбор участников -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-[#8d887c]">Добавить участников (${d.selectedMembers.length})</span>
+            </div>
+            <input type="text" value="${escapeHtml(d.memberSearch)}" oninput="ccUpdateDraft('memberSearch', this.value); renderCreateChatModal();" placeholder="Поиск пользователей..." class="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-[#262421] border border-slate-200 dark:border-[#36322e] text-xs focus:outline-none" />
+            <div class="max-h-36 overflow-y-auto custom-scroll space-y-1 pr-1">
+              ${otherUsers.map(u => {
+                const sel = d.selectedMembers.includes(u.id);
+                return `
+                  <div onclick="ccToggleMember('${u.id}')" class="flex items-center justify-between gap-2 p-2 rounded-xl cursor-pointer border transition ${sel ? 'hg-accent-border hg-accent-soft' : 'border-transparent hover:bg-slate-100 dark:hover:bg-[#2a2724]'}">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                      ${avatarBoxHtml(u, 'w-8 h-8 rounded-lg text-xs')}
+                      <div class="min-w-0">
+                        <div class="text-xs font-semibold truncate">${escapeHtml(u.displayName)}</div>
+                        <div class="text-[11px] text-slate-500 dark:text-[#8d887c]">${escapeHtml(u.username)}</div>
+                      </div>
+                    </div>
+                    <span class="w-5 h-5 rounded flex items-center justify-center text-xs font-bold ${sel ? 'hg-accent-bg text-white' : 'border border-slate-400 dark:border-[#5a564b]'}">${sel ? '✓' : ''}</span>
+                  </div>
+                `;
+              }).join('') || `<div class="text-xs text-slate-400 text-center py-2">Других пользователей нет</div>`}
+            </div>
+          </div>
+
+          <button onclick="submitCreateChat()" class="w-full py-3 rounded-xl hg-accent-bg text-white font-bold text-sm transition">${isChannel ? 'Создать канал' : 'Создать группу'}</button>
+        </div>
+      `;
+    }
+
+    window.submitCreateChat = async function() {
+      const d = createChatDraft;
+      const title = (d.title || '').trim();
+      if (title.length < 2) { showToast('Введите название (от 2 символов)', 'error'); return; }
+
+      const handle = normalizeHandle(d.handle);
+      if (handle) {
+        const dup = Object.values(chatsMap).some(c => c.handle && c.handle.toLowerCase() === handle);
+        if (dup) { showToast('Этот @тег уже занят другим чатом/каналом', 'error'); return; }
+      }
+
+      const type = createChatTab === 'channel' ? 'channel' : 'group';
+      const id = `${type}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      const members = Array.from(new Set([currentUserId, ...d.selectedMembers]));
+      const inviteCode = generateInviteCode();
+
+      const chatObj = {
+        id,
+        type,
+        title,
+        handle,
+        description: (d.description || '').trim(),
+        isPublic: !!d.isPublic,
+        inviteCode,
+        ownerId: currentUserId,
+        admins: [currentUserId],
+        members,
+        muted: [],
+        adminsOnly: false,
+        signPosts: type === 'channel' ? !!d.signPosts : true,
+        slowModeSec: type === 'group' ? (Number(d.slowModeSec) || 0) : 0,
+        pinnedMessageId: '',
+        avatarColor: d.avatarColor || 'from-indigo-500 to-purple-600',
+        avatarUrl: d.avatarUrl || '',
+        initials: d.initials || title.slice(0, 2).toUpperCase(),
+        badges: { verified: false, premium: false, staff: false, scam: false },
+        createdAt: Date.now()
+      };
+
+      await dbSet('hg_chats', id, chatObj);
+      closeCreateChatModal();
+      selectChat(id);
+      showToast(type === 'channel' ? `Канал «${title}» создан!` : `Группа «${title}» создана!`, 'success');
+    };
+
+    window.joinChatById = async function(chatId) {
+      const chat = chatsMap[chatId];
+      if (!chat || !currentUserId) return;
+      if (isChatMember(chat)) { selectChat(chatId); return; }
+      const members = Array.from(new Set([...(chat.members || []), currentUserId]));
+      await dbUpdate('hg_chats', chatId, { members });
+      selectChat(chatId);
+      showToast(chat.type === 'channel' ? `Вы подписались на «${chat.title}»` : `Вы вступили в «${chat.title}»`, 'success');
+    };
+
+    window.joinActiveChat = function() {
+      if (activeChatId) joinChatById(activeChatId);
+    };
+
+    window.joinByCodeOrHandle = async function() {
+      const raw = (document.getElementById('joinCodeInput')?.value || '').trim();
+      if (!raw) { showToast('Введите код или @тег', 'error'); return; }
+      const upper = raw.toUpperCase();
+      const handle = normalizeHandle(raw);
+      const found = Object.values(chatsMap).find(c =>
+        (c.type === 'group' || c.type === 'channel') &&
+        ((c.inviteCode && c.inviteCode.toUpperCase() === upper) || (handle && c.handle && c.handle.toLowerCase() === handle))
+      );
+      if (!found) { showToast('Чат или канал с таким кодом/@тегом не найден', 'error'); return; }
+      await joinChatById(found.id);
+      closeCreateChatModal();
+    };
+
+    window.leaveChat = async function(chatId) {
+      const chat = chatsMap[chatId];
+      if (!chat || isSystemChat(chat)) return;
+      if (isChatOwner(chat)) { showToast('Владелец не может выйти — сначала удалите чат или передайте права', 'error'); return; }
+      const members = (chat.members || []).filter(id => id !== currentUserId);
+      const admins = (chat.admins || []).filter(id => id !== currentUserId);
+      await dbUpdate('hg_chats', chatId, { members, admins });
+      closeInfoPanel();
+      if (activeChatId === chatId) activeChatId = 'global_chat';
+      renderIfLoggedIn();
+      showToast(chat.type === 'channel' ? 'Вы отписались от канала' : 'Вы вышли из группы');
+    };
+
+    window.deleteCustomChat = async function(chatId) {
+      const chat = chatsMap[chatId];
+      if (!chat || isSystemChat(chat)) { showToast('Системный чат нельзя удалить', 'error'); return; }
+      if (!isChatOwner(chat) && !isAdmin()) return;
+      if (!confirm(`Удалить «${chat.title}»? Это действие необратимо.`)) return;
+      await dbDelete('hg_chats', chatId);
+      closeInfoPanel();
+      if (activeChatId === chatId) activeChatId = 'global_chat';
+      renderIfLoggedIn();
+      showToast('Чат удалён');
+    };
+
+    // ---------- Управление участниками и настройками чата ----------
+    window.setInfoPanelMode = function(mode) {
+      infoPanelMode = mode;
+      renderInfoPanel();
+    };
+
+    window.copyInviteCode = function(code) {
+      navigator.clipboard?.writeText(code).then(() => showToast(`Код ${code} скопирован`, 'success')).catch(() => showToast(code));
+    };
+
+    window.regenerateInviteCode = async function(chatId) {
+      const chat = chatsMap[chatId];
+      if (!chat || !isChatAdmin(chat)) return;
+      const inviteCode = generateInviteCode();
+      await dbUpdate('hg_chats', chatId, { inviteCode });
+      showToast(`Новый код: ${inviteCode}`, 'success');
+    };
+
+    window.addMemberByUsername = async function(chatId) {
+      const chat = chatsMap[chatId];
+      if (!chat || !isChatAdmin(chat)) return;
+      const raw = document.getElementById('addMemberInput')?.value || '';
+      const uid = normalizeId(raw);
+      if (!uid || !usersMap[uid]) { showToast('Пользователь не найден', 'error'); return; }
+      const members = Array.from(new Set([...(chat.members || []), uid]));
+      await dbUpdate('hg_chats', chatId, { members });
+      showToast(`${usersMap[uid].displayName} добавлен`, 'success');
+    };
+
+    window.chatToggleAdmin = async function(chatId, uid) {
+      const chat = chatsMap[chatId];
+      if (!chat || (!isChatOwner(chat) && !isAdmin()) || uid === chat.ownerId) return;
+      const admins = new Set(chat.admins || []);
+      if (admins.has(uid)) admins.delete(uid); else admins.add(uid);
+      await dbUpdate('hg_chats', chatId, { admins: Array.from(admins) });
+      showToast(admins.has(uid) ? 'Назначен администратором' : 'Снят с админов', 'success');
+    };
+
+    window.chatToggleMute = async function(chatId, uid) {
+      const chat = chatsMap[chatId];
+      if (!chat || !isChatAdmin(chat) || uid === chat.ownerId) return;
+      const muted = new Set(chat.muted || []);
+      if (muted.has(uid)) muted.delete(uid); else muted.add(uid);
+      await dbUpdate('hg_chats', chatId, { muted: Array.from(muted) });
+      showToast(muted.has(uid) ? 'Участнику запрещено писать' : 'Ограничение снято', 'info');
+    };
+
+    window.chatKickMember = async function(chatId, uid) {
+      const chat = chatsMap[chatId];
+      if (!chat || !isChatAdmin(chat) || uid === chat.ownerId) return;
+      const members = (chat.members || []).filter(id => id !== uid);
+      const admins = (chat.admins || []).filter(id => id !== uid);
+      const muted = (chat.muted || []).filter(id => id !== uid);
+      await dbUpdate('hg_chats', chatId, { members, admins, muted });
+      showToast('Участник исключён');
+    };
+
+    window.chatTriggerEditAvatar = function() {
+      const inp = document.getElementById('editChatAvatarInput');
+      if (inp) { inp.value = ''; inp.click(); }
+    };
+
+    window.chatHandleEditAvatar = function(e, chatId) {
+      const file = e.target?.files?.[0];
+      if (!file || !file.type?.startsWith('image/')) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        const img = new Image();
+        img.onload = async () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = 256; canvas.height = 256;
+          const ctx = canvas.getContext('2d');
+          const s = Math.min(img.width, img.height);
+          ctx.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, 256, 256);
+          await dbUpdate('hg_chats', chatId, { avatarUrl: canvas.toDataURL('image/jpeg', 0.84) });
+          showToast('Фото обновлено', 'success');
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    };
+
+    window.saveChatSettings = async function(chatId) {
+      const chat = chatsMap[chatId];
+      if (!chat || !isChatAdmin(chat)) return;
+      const title = (document.getElementById('editChatTitle')?.value || '').trim();
+      if (title.length < 2) { showToast('Название слишком короткое', 'error'); return; }
+      const description = (document.getElementById('editChatDesc')?.value || '').trim();
+      const handle = normalizeHandle(document.getElementById('editChatHandle')?.value || '');
+      if (handle) {
+        const dup = Object.values(chatsMap).some(c => c.id !== chatId && c.handle && c.handle.toLowerCase() === handle);
+        if (dup) { showToast('Этот @тег уже занят', 'error'); return; }
+      }
+      await dbUpdate('hg_chats', chatId, { title, description, handle });
+      showToast('Настройки чата сохранены', 'success');
+      setInfoPanelMode('overview');
+    };
+
+    window.chatToggleField = async function(chatId, field) {
+      const chat = chatsMap[chatId];
+      if (!chat || !isChatAdmin(chat)) return;
+      await dbUpdate('hg_chats', chatId, { [field]: !chat[field] });
+    };
+
+    window.chatSetSlowMode = async function(chatId, sec) {
+      const chat = chatsMap[chatId];
+      if (!chat || !isChatAdmin(chat)) return;
+      await dbUpdate('hg_chats', chatId, { slowModeSec: Number(sec) || 0 });
+      showToast(sec ? `Медленный режим: ${sec} сек` : 'Медленный режим выключен', 'success');
+    };
+
+    // ---------- Закреплённые сообщения ----------
+    window.ctxTogglePin = async function() {
+      const id = ctxMsgId;
+      document.getElementById('msgContextMenu').classList.add('hidden');
+      const chat = chatsMap[activeChatId];
+      if (!chat || !id || !isChatAdmin(chat)) return;
+      const nextPin = chat.pinnedMessageId === id ? '' : id;
+      await dbUpdate('hg_chats', chat.id, { pinnedMessageId: nextPin });
+      showToast(nextPin ? 'Сообщение закреплено' : 'Сообщение откреплено', 'success');
+    };
+
+    window.unpinCurrentChatMessage = async function() {
+      const chat = chatsMap[activeChatId];
+      if (!chat || !isChatAdmin(chat)) return;
+      await dbUpdate('hg_chats', chat.id, { pinnedMessageId: '' });
+      showToast('Сообщение откреплено');
+    };
+
+    window.jumpToPinned = function() {
+      const chat = chatsMap[activeChatId];
+      if (chat?.pinnedMessageId) scrollToMsg(chat.pinnedMessageId);
+    };
+
+    function renderPinnedBanner(chat, msgs) {
+      const banner = document.getElementById('pinnedBanner');
+      const textEl = document.getElementById('pinnedBannerText');
+      const unpinBtn = document.getElementById('btnUnpinBanner');
+      if (!banner || !chat || !chat.pinnedMessageId) {
+        if (banner) banner.classList.add('hidden');
+        return;
+      }
+      const pinned = msgs.find(m => m.id === chat.pinnedMessageId);
+      if (!pinned) {
+        banner.classList.add('hidden');
+        return;
+      }
+      textEl.textContent = pinned.text;
+      unpinBtn.classList.toggle('hidden', !isChatAdmin(chat));
+      banner.classList.remove('hidden');
+    }
+
+    // ---------- Поиск внутри чата ----------
+    window.toggleChatSearch = function(force) {
+      inChatSearchOpen = typeof force === 'boolean' ? force : !inChatSearchOpen;
+      const bar = document.getElementById('inChatSearchBar');
+      bar.classList.toggle('hidden', !inChatSearchOpen);
+      if (inChatSearchOpen) {
+        const inp = document.getElementById('inChatSearchInput');
+        inp.focus();
+        updateInChatSearch(inp.value);
+      } else {
+        inChatSearchQuery = '';
+        inChatSearchMatches = [];
+        document.getElementById('inChatSearchInput').value = '';
+        document.getElementById('inChatSearchCount').textContent = '';
+      }
+    };
+
+    window.updateInChatSearch = function(val) {
+      inChatSearchQuery = (val || '').trim().toLowerCase();
+      const countEl = document.getElementById('inChatSearchCount');
+      if (!inChatSearchQuery) {
+        inChatSearchMatches = [];
+        countEl.textContent = '';
+        return;
+      }
+      inChatSearchMatches = messagesList
+        .filter(m => m.chatId === activeChatId && (m.text || '').toLowerCase().includes(inChatSearchQuery))
+        .map(m => m.id);
+      inChatSearchIdx = inChatSearchMatches.length - 1;
+      if (inChatSearchMatches.length) {
+        countEl.textContent = `${inChatSearchIdx + 1} / ${inChatSearchMatches.length}`;
+        scrollToMsg(inChatSearchMatches[inChatSearchIdx]);
+      } else {
+        countEl.textContent = '0 / 0';
+      }
+    };
+
+    window.stepInChatSearch = function(delta) {
+      if (!inChatSearchMatches.length) return;
+      inChatSearchIdx = (inChatSearchIdx + delta + inChatSearchMatches.length) % inChatSearchMatches.length;
+      document.getElementById('inChatSearchCount').textContent = `${inChatSearchIdx + 1} / ${inChatSearchMatches.length}`;
+      scrollToMsg(inChatSearchMatches[inChatSearchIdx]);
+    };
+
+    window.setChatFilter = function(f) {
+      chatFilter = f;
+      renderChatList();
+    };
+
     // =========================================================
     // НАДЁЖНОЕ ХРАНИЛИЩЕ
     // =========================================================
@@ -1100,6 +1809,7 @@
       }
     }
 
+    window.dbUpdate = dbUpdate;
     async function dbUpdate(colName, docId, patch) {
       if (useCloud && db) {
         await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', colName, docId), patch);
@@ -1120,6 +1830,7 @@
         await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', colName, docId));
       } else {
         if (colName === 'hg_messages') messagesList = messagesList.filter(m => m.id !== docId);
+        if (colName === 'hg_chats') delete chatsMap[docId];
         saveFallback();
         renderIfLoggedIn();
       }
@@ -1672,9 +2383,14 @@
           peer: peer
         };
       }
+      const count = getChatMemberCount(chat);
+      const typeWord = chat.type === 'channel'
+        ? (chat.id === 'news_channel' ? 'Официальный канал' : `Подписчиков: ${count}`)
+        : `Участников: ${count}`;
+      const handlePart = chat.handle ? `@${chat.handle} • ` : '';
       return {
         title: chat.title,
-        subtitle: chat.type === 'channel' ? 'Официальный канал' : `Участников: ${Object.keys(usersMap).length}`,
+        subtitle: `${handlePart}${typeWord}`,
         avatarColor: chat.avatarColor,
         avatarUrl: chat.avatarUrl || '',
         initials: chat.initials,
@@ -1684,18 +2400,32 @@
     }
 
     window.renderChatList = function() {
+      const tabsEl = document.getElementById('chatFilterTabs');
+      if (tabsEl) {
+        const filterItems = [
+          ['all', 'Все'],
+          ['dm', 'Личные'],
+          ['group', 'Группы'],
+          ['channel', 'Каналы']
+        ];
+        tabsEl.innerHTML = filterItems.map(([k, lbl]) => `
+          <button onclick="setChatFilter('${k}')" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap transition ${chatFilter === k ? 'hg-accent-bg text-white' : 'bg-slate-100 dark:bg-[#262421] text-slate-600 dark:text-[#8d887c] hover:text-slate-900 dark:hover:text-white'}">${lbl}</button>
+        `).join('');
+      }
+
       const container = document.getElementById('chatList');
       const q = (document.getElementById('searchInput').value || '').trim().toLowerCase();
 
       const myChats = Object.values(chatsMap).filter(c => {
-        if (c.type === 'dm') return (c.participants || []).includes(currentUserId);
+        if (!isChatMember(c)) return false;
+        if (chatFilter !== 'all' && c.type !== chatFilter) return false;
         return true;
       });
 
       const filteredChats = myChats.filter(c => {
         if (!q) return true;
         const meta = getChatMeta(c);
-        return meta.title.toLowerCase().includes(q) || (meta.subtitle || '').toLowerCase().includes(q);
+        return meta.title.toLowerCase().includes(q) || (meta.subtitle || '').toLowerCase().includes(q) || (c.handle && ('@' + c.handle).includes(q));
       });
 
       filteredChats.sort((a, b) => {
@@ -1718,13 +2448,16 @@
           else previewHtml = escapeHtml(lastMsg.text);
         }
         const time = (lastMsg && settings.showTimestamps) ? formatTime(lastMsg.timestamp) : '';
+        const typeTag = c.type === 'channel'
+          ? '<span class="text-[9px] uppercase tracking-wider px-1 rounded bg-slate-200/80 dark:bg-[#2e2b28] text-slate-500 dark:text-[#8d887c]">канал</span>'
+          : (c.type === 'group' && !isSystemChat(c) ? '<span class="text-[9px] uppercase tracking-wider px-1 rounded bg-slate-200/80 dark:bg-[#2e2b28] text-slate-500 dark:text-[#8d887c]">чат</span>' : '');
 
         return `
           <div onclick="selectChat('${c.id}')" class="hg-chat-row flex items-center gap-3 px-2.5 py-3 cursor-pointer transition border-b border-slate-200/80 dark:border-[#2e2b28] ${active ? 'hg-chat-active' : 'hover:bg-slate-100 dark:hover:bg-[#2a2724]'}">
             ${avatarBoxHtml(meta, 'w-11 h-11 rounded-2xl text-sm')}
             <div class="min-w-0 flex-1">
               <div class="flex items-center justify-between gap-1">
-                <div class="font-semibold text-sm truncate flex items-center gap-1">${escapeHtml(meta.title)}${renderBadges(meta.badges, true)}</div>
+                <div class="font-semibold text-sm truncate flex items-center gap-1">${escapeHtml(meta.title)}${renderBadges(meta.badges, true)}${typeTag}</div>
                 <span class="text-[10px] text-slate-400 flex-shrink-0">${time}</span>
               </div>
               <div class="text-xs text-slate-500 dark:text-[#8d887c] truncate mt-0.5">${previewHtml}</div>
@@ -1734,6 +2467,29 @@
       }).join('');
 
       if (q) {
+        // Глобальный поиск публичных каналов и групп
+        const foundPublicChats = Object.values(chatsMap).filter(c =>
+          (c.type === 'group' || c.type === 'channel') &&
+          c.isPublic &&
+          !isChatMember(c) &&
+          (c.title.toLowerCase().includes(q) || (c.handle && ('@' + c.handle).toLowerCase().includes(q)))
+        );
+        if (foundPublicChats.length) {
+          html += `<div class="px-2 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider hg-accent-text">Публичные чаты и каналы</div>`;
+          html += foundPublicChats.map(c => `
+            <div onclick="selectChat('${c.id}')" class="flex items-center justify-between gap-2 p-2.5 rounded-2xl cursor-pointer hover:bg-slate-100 dark:hover:bg-[#2a2724] transition">
+              <div class="flex items-center gap-2.5 min-w-0">
+                ${avatarBoxHtml(c, 'w-10 h-10 rounded-xl text-xs')}
+                <div class="min-w-0">
+                  <div class="font-semibold text-sm truncate flex items-center gap-1">${escapeHtml(c.title)}${renderBadges(c.badges, true)}</div>
+                  <div class="text-[11px] text-slate-500 dark:text-[#8d887c] truncate">${c.type === 'channel' ? 'Канал' : 'Группа'}${c.handle ? ' • @' + escapeHtml(c.handle) : ''}</div>
+                </div>
+              </div>
+              <button onclick="event.stopPropagation(); joinChatById('${c.id}')" class="px-2.5 py-1 rounded-lg hg-accent-bg text-white text-[11px] font-bold flex-shrink-0">${c.type === 'channel' ? 'Подписаться' : 'Вступить'}</button>
+            </div>
+          `).join('');
+        }
+
         const foundUsers = Object.values(usersMap).filter(u =>
           u.id !== currentUserId &&
           (u.username.toLowerCase().includes(q) || u.displayName.toLowerCase().includes(q))
@@ -1756,7 +2512,11 @@
     };
 
     window.selectChat = function(chatId) {
-      if (activeChatId !== chatId) notifyTyping(false);
+      if (activeChatId !== chatId) {
+        notifyTyping(false);
+        if (inChatSearchOpen) toggleChatSearch(false);
+        infoPanelMode = 'overview';
+      }
       activeChatId = chatId;
       saveLastChat();
       cancelReply();
@@ -1814,29 +2574,30 @@
       document.getElementById('chatHeaderTitle').innerHTML = `<span class="truncate">${escapeHtml(meta.title)}</span>${renderBadges(meta.badges, false)}`;
       updateActiveChatHeaderStatus();
 
-      const cur = getCurrentUser();
+      const perm = canWriteToChat(chat);
+      const joinBarEl = document.getElementById('composerJoinBar');
+      const joinBtnEl = document.getElementById('btnComposerJoin');
       const restrictEl = document.getElementById('composerRestriction');
       const controlsEl = document.getElementById('composerControls');
-      let restrictMsg = '';
 
-      if (cur.banned) {
-        restrictMsg = '🚫 Ваш аккаунт заблокирован администратором @Hypergram.';
-      } else if (chat.type === 'channel' && !isAdmin()) {
-        restrictMsg = '📢 Писать в канал «Новости HYPERGRAM» может только администратор Hypergram.';
-      } else if (chat.type === 'dm' && meta.peer && settings.blockedUsers.includes(meta.peer.id)) {
-        restrictMsg = 'Вы добавили этого пользователя в чёрный список. Разблокируйте его в профиле или настройках, чтобы писать.';
-      }
-
-      if (restrictMsg) {
-        restrictEl.textContent = restrictMsg;
+      if (!perm.ok && perm.reason === 'NOT_MEMBER') {
+        joinBtnEl.textContent = chat.type === 'channel' ? `Подписаться на «${chat.title}»` : `Вступить в «${chat.title}»`;
+        joinBarEl.classList.remove('hidden');
+        restrictEl.classList.add('hidden');
+        controlsEl.classList.add('hidden');
+      } else if (!perm.ok) {
+        joinBarEl.classList.add('hidden');
+        restrictEl.textContent = perm.reason;
         restrictEl.classList.remove('hidden');
         controlsEl.classList.add('hidden');
       } else {
+        joinBarEl.classList.add('hidden');
         restrictEl.classList.add('hidden');
         controlsEl.classList.remove('hidden');
       }
 
       const msgs = messagesList.filter(m => m.chatId === chat.id);
+      renderPinnedBanner(chat, msgs);
       const container = document.getElementById('messagesContainer');
 
       if (!msgs.length) {
@@ -1878,13 +2639,24 @@
           return `<button onclick="toggleReaction('${msg.id}','${emoji}')" class="px-2 py-0.5 rounded-full text-xs flex items-center gap-1 ${mine ? 'hg-accent-bg text-white' : 'bg-black/10 dark:bg-white/10'}"><span>${emoji}</span><span class="text-[10px] font-bold">${arr.length}</span></button>`;
         }).join('');
 
-        const senderHeader = (!isOut && (chat.type === 'group' || chat.type === 'channel')) ? `
-          <div onclick="openUserProfile('${sender.id}')" class="flex items-center gap-1 mb-1 cursor-pointer hover:underline">
-            <span class="text-xs font-bold hg-accent-text">${escapeHtml(sender.displayName)}</span>
-            ${renderBadges(sender.badges, true)}
-            ${sender.customTitle ? `<span class="text-[10px] px-1.5 rounded hg-accent-soft hg-accent-text font-medium">${escapeHtml(sender.customTitle)}</span>` : ''}
-          </div>
-        ` : '';
+        let senderHeader = '';
+        if (!isOut && chat.type === 'group') {
+          senderHeader = `
+            <div onclick="openUserProfile('${sender.id}')" class="flex items-center gap-1 mb-1 cursor-pointer hover:underline">
+              <span class="text-xs font-bold hg-accent-text">${escapeHtml(sender.displayName)}</span>
+              ${renderBadges(sender.badges, true)}
+              ${sender.customTitle ? `<span class="text-[10px] px-1.5 rounded hg-accent-soft hg-accent-text font-medium">${escapeHtml(sender.customTitle)}</span>` : ''}
+            </div>
+          `;
+        } else if (chat.type === 'channel') {
+          const signAuthor = chat.signPosts !== false;
+          senderHeader = `
+            <div class="flex items-center justify-between gap-2 mb-1">
+              <span class="text-xs font-bold hg-accent-text flex items-center gap-1">${escapeHtml(chat.title)}${renderBadges(chat.badges, true)}</span>
+              ${signAuthor ? `<span onclick="openUserProfile('${sender.id}')" class="text-[10px] text-slate-400 hover:underline cursor-pointer">${escapeHtml(sender.displayName)}</span>` : ''}
+            </div>
+          `;
+        }
 
         const showAvatar = !isOut && chat.type === 'group' && settings.showGroupAvatars;
         const isRead = isOut ? isMessageRead(msg, chat) : false;
@@ -1893,8 +2665,11 @@
               ? '<span title="Прочитано" class="hg-sig hg-sig-read"></span>'
               : '<span title="Отправлено" class="hg-sig hg-sig-sent"></span>')
           : '';
-        const metaRow = (settings.showTimestamps || receiptHtml) ? `
+        const viewsCount = chat.type === 'channel' ? Math.max(1, Array.isArray(msg.views) ? msg.views.length : 1) : 0;
+        const viewsHtml = chat.type === 'channel' ? `<span title="Просмотры" class="inline-flex items-center gap-0.5 mr-1">👁 ${viewsCount}</span>` : '';
+        const metaRow = (settings.showTimestamps || receiptHtml || viewsHtml) ? `
           <div class="flex items-center justify-end gap-1 mt-1 text-[10px] ${isOut ? 'text-white/75' : 'text-slate-400'}">
+            ${viewsHtml}
             ${settings.showTimestamps ? `<span>${formatTime(msg.timestamp)}</span>` : ''}
             ${receiptHtml}
           </div>
@@ -1920,6 +2695,7 @@
 
       container.scrollTop = container.scrollHeight;
       markActiveChatAsRead();
+      markChannelPostsViewed(chat, msgs);
     }
 
     // =========================================================
@@ -1930,9 +2706,23 @@
       const rawText = input.value.trim();
       if (!rawText || !activeChatId) return;
 
-      const cur = getCurrentUser();
       const chat = chatsMap[activeChatId];
-      if (cur.banned || (chat.type === 'channel' && !isAdmin())) return;
+      const perm = canWriteToChat(chat);
+      if (!perm.ok) {
+        if (perm.reason && perm.reason !== 'NOT_MEMBER') showToast(perm.reason, 'error');
+        return;
+      }
+
+      // Медленный режим (Slow Mode) для групп
+      if (chat.type === 'group' && chat.slowModeSec > 0 && !isChatAdmin(chat)) {
+        const lastTs = slowModeLastSent[chat.id] || 0;
+        const leftMs = (chat.slowModeSec * 1000) - (Date.now() - lastTs);
+        if (leftMs > 0) {
+          showToast(`Медленный режим: подождите ещё ${Math.ceil(leftMs / 1000)} сек.`, 'error');
+          return;
+        }
+        slowModeLastSent[chat.id] = Date.now();
+      }
 
       const text = applyEmoticons(rawText);
       const id = 'm_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
@@ -1951,7 +2741,8 @@
         replyToId: replyId,
         reactions: {},
         timestamp: Date.now(),
-        readBy: [currentUserId]
+        readBy: [currentUserId],
+        views: chat.type === 'channel' ? [currentUserId] : []
       });
     };
 
@@ -1975,8 +2766,16 @@
       const msg = messagesList.find(m => m.id === msgId);
       if (!msg) return;
       ctxMsgId = msgId;
-      const canDel = msg.senderId === currentUserId || isAdmin();
+      const chat = chatsMap[msg.chatId];
+      const canManage = isChatAdmin(chat);
+      const canDel = msg.senderId === currentUserId || canManage;
       document.getElementById('ctxBtnDelete').classList.toggle('hidden', !canDel);
+      const pinBtn = document.getElementById('ctxBtnPin');
+      if (pinBtn) {
+        const showPin = canManage && chat && chat.type !== 'dm';
+        pinBtn.classList.toggle('hidden', !showPin);
+        pinBtn.textContent = chat?.pinnedMessageId === msg.id ? 'Открепить' : 'Закрепить';
+      }
       const menu = document.getElementById('msgContextMenu');
       menu.classList.remove('hidden');
       menu.style.left = Math.max(10, Math.min(e.clientX, window.innerWidth - 220)) + 'px';
@@ -2133,12 +2932,158 @@
       } else {
         const chat = chatsMap[infoTarget.id];
         if (!chat) return;
+        const canManage = isChatAdmin(chat);
+        const owner = isChatOwner(chat);
+        const isSys = isSystemChat(chat);
+        const isMem = isChatMember(chat);
+        const memberIds = isSys ? Object.keys(usersMap) : (chat.members || []);
+        const memberObjs = memberIds.map(id => usersMap[id]).filter(Boolean);
+
+        const navHtml = !isSys ? `
+          <div class="grid ${canManage ? 'grid-cols-3' : 'grid-cols-2'} gap-1 p-1 rounded-xl bg-slate-100 dark:bg-[#262421]">
+            <button onclick="setInfoPanelMode('overview')" class="py-1.5 rounded-lg text-[11px] font-semibold transition ${infoPanelMode === 'overview' ? 'hg-accent-bg text-white' : 'text-slate-500 dark:text-[#8d887c]'}">Инфо</button>
+            <button onclick="setInfoPanelMode('members')" class="py-1.5 rounded-lg text-[11px] font-semibold transition ${infoPanelMode === 'members' ? 'hg-accent-bg text-white' : 'text-slate-500 dark:text-[#8d887c]'}">Участники (${memberObjs.length})</button>
+            ${canManage ? `<button onclick="setInfoPanelMode('edit')" class="py-1.5 rounded-lg text-[11px] font-semibold transition ${infoPanelMode === 'edit' ? 'hg-accent-bg text-white' : 'text-slate-500 dark:text-[#8d887c]'}">Настройки</button>` : ''}
+          </div>
+        ` : '';
+
+        if (!isSys && infoPanelMode === 'members') {
+          c.innerHTML = `
+            ${navHtml}
+            ${canManage ? `
+              <div class="flex gap-1.5">
+                <input id="addMemberInput" type="text" placeholder="Добавить по @username" class="flex-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-[#262421] border border-slate-200 dark:border-[#36322e] text-xs focus:outline-none" />
+                <button onclick="addMemberByUsername('${chat.id}')" class="px-3 py-2 rounded-xl hg-accent-bg text-white text-xs font-bold">+</button>
+              </div>
+            ` : ''}
+            <div class="space-y-2">
+              ${memberObjs.map(m => {
+                const mOwner = chat.ownerId === m.id;
+                const mAdmin = Array.isArray(chat.admins) && chat.admins.includes(m.id);
+                const mMuted = Array.isArray(chat.muted) && chat.muted.includes(m.id);
+                const roleTag = mOwner ? '<span class="text-[9px] px-1.5 py-0.5 rounded hg-accent-soft hg-accent-text font-bold uppercase">Владелец</span>'
+                  : mAdmin ? '<span class="text-[9px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-400 font-bold uppercase">Админ</span>' : '';
+                return `
+                  <div class="p-2.5 rounded-xl bg-slate-100/80 dark:bg-[#262421] border border-slate-200 dark:border-[#36322e] space-y-2">
+                    <div onclick="openUserProfile('${m.id}')" class="flex items-center gap-2.5 cursor-pointer">
+                      ${avatarBoxHtml(m, 'w-9 h-9 rounded-lg text-xs')}
+                      <div class="min-w-0 flex-1">
+                        <div class="text-xs font-semibold truncate flex items-center gap-1">${escapeHtml(m.displayName)}${renderBadges(m.badges, true)} ${roleTag}</div>
+                        <div class="text-[11px] text-slate-500 dark:text-[#8d887c] truncate">${escapeHtml(m.username)}${mMuted ? ' • 🔇 Мут' : ''}</div>
+                      </div>
+                    </div>
+                    ${(canManage && !mOwner && m.id !== currentUserId) ? `
+                      <div class="flex flex-wrap gap-1 pt-1.5 border-t border-slate-200 dark:border-[#36322e]">
+                        ${(owner || isAdmin()) ? `<button onclick="chatToggleAdmin('${chat.id}','${m.id}')" class="px-2 py-1 rounded-lg text-[10px] font-semibold border border-slate-300 dark:border-[#403b36] hover:bg-slate-200 dark:hover:bg-[#322f2b]">${mAdmin ? 'Снять админа' : 'Сделать админом'}</button>` : ''}
+                        ${chat.type === 'group' ? `<button onclick="chatToggleMute('${chat.id}','${m.id}')" class="px-2 py-1 rounded-lg text-[10px] font-semibold border border-slate-300 dark:border-[#403b36] hover:bg-slate-200 dark:hover:bg-[#322f2b]">${mMuted ? 'Размутить' : 'Мут'}</button>` : ''}
+                        <button onclick="chatKickMember('${chat.id}','${m.id}')" class="px-2 py-1 rounded-lg text-[10px] font-semibold bg-red-500/10 text-red-500 hover:bg-red-500/20">Исключить</button>
+                      </div>
+                    ` : ''}
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          `;
+          return;
+        }
+
+        if (!isSys && infoPanelMode === 'edit' && canManage) {
+          c.innerHTML = `
+            ${navHtml}
+            <div class="space-y-3">
+              <div class="flex items-center gap-3">
+                ${avatarBoxHtml(chat, 'w-14 h-14 rounded-2xl text-xl')}
+                <div class="space-y-1.5">
+                  <input id="editChatAvatarInput" type="file" accept="image/*" class="hidden" onchange="chatHandleEditAvatar(event, '${chat.id}')" />
+                  <button onclick="chatTriggerEditAvatar()" class="px-3 py-1.5 rounded-xl hg-accent-bg text-white text-xs font-bold">Сменить фото</button>
+                  ${chat.avatarUrl ? `<button onclick="dbUpdate('hg_chats','${chat.id}',{avatarUrl:''})" class="block text-[11px] text-red-500 hover:underline">Удалить фото</button>` : ''}
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-500 dark:text-[#8d887c] mb-1">Название</label>
+                <input id="editChatTitle" type="text" maxlength="48" value="${escapeHtml(chat.title)}" class="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-[#262421] border border-slate-200 dark:border-[#36322e] text-xs focus:outline-none" />
+              </div>
+
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-500 dark:text-[#8d887c] mb-1">Публичный @тег</label>
+                <input id="editChatHandle" type="text" maxlength="25" value="${escapeHtml(chat.handle || '')}" placeholder="@tag" class="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-[#262421] border border-slate-200 dark:border-[#36322e] text-xs focus:outline-none" />
+              </div>
+
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-500 dark:text-[#8d887c] mb-1">Описание</label>
+                <textarea id="editChatDesc" rows="2" maxlength="200" class="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-[#262421] border border-slate-200 dark:border-[#36322e] text-xs resize-none focus:outline-none">${escapeHtml(chat.description || '')}</textarea>
+              </div>
+
+              <button onclick="saveChatSettings('${chat.id}')" class="w-full py-2.5 rounded-xl hg-accent-bg text-white text-xs font-bold">Сохранить</button>
+
+              <div class="pt-3 border-t border-slate-200 dark:border-[#2e2b28] space-y-2.5">
+                <div class="flex items-center justify-between gap-2">
+                  <span class="text-xs font-semibold">Публичный (виден в поиске)</span>
+                  <button type="button" role="switch" aria-checked="${!!chat.isPublic}" onclick="chatToggleField('${chat.id}','isPublic')" class="hg-switch"></button>
+                </div>
+
+                ${chat.type === 'channel' ? `
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="text-xs font-semibold">Подписывать посты автором</span>
+                    <button type="button" role="switch" aria-checked="${chat.signPosts !== false}" onclick="chatToggleField('${chat.id}','signPosts')" class="hg-switch"></button>
+                  </div>
+                ` : `
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="text-xs font-semibold">Только админы могут писать</span>
+                    <button type="button" role="switch" aria-checked="${!!chat.adminsOnly}" onclick="chatToggleField('${chat.id}','adminsOnly')" class="hg-switch"></button>
+                  </div>
+                  <div class="space-y-1.5">
+                    <div class="text-xs font-semibold">Медленный режим</div>
+                    <div class="flex flex-wrap gap-1">
+                      ${SLOW_MODE_OPTIONS.map(o => `<button onclick="chatSetSlowMode('${chat.id}',${o.sec})" class="px-2 py-1 rounded-lg text-[10px] font-semibold border ${(chat.slowModeSec || 0) === o.sec ? 'hg-accent-border hg-accent-soft hg-accent-text' : 'border-slate-300 dark:border-[#403b36]'}">${o.label}</button>`).join('')}
+                    </div>
+                  </div>
+                `}
+              </div>
+
+              ${(owner || isAdmin()) ? `
+                <div class="pt-3 border-t border-slate-200 dark:border-[#2e2b28]">
+                  <button onclick="deleteCustomChat('${chat.id}')" class="w-full py-2.5 rounded-xl bg-red-500/15 text-red-500 hover:bg-red-500/25 text-xs font-bold transition">Удалить ${chat.type === 'channel' ? 'канал' : 'группу'}</button>
+                </div>
+              ` : ''}
+            </div>
+          `;
+          return;
+        }
+
+        // Overview tab
         c.innerHTML = `
+          ${navHtml}
           <div class="text-center pt-2">
             ${avatarBoxHtml(chat, 'w-20 h-20 mx-auto rounded-3xl text-2xl mb-3')}
-            <div class="font-bold text-lg flex items-center justify-center gap-1.5">${escapeHtml(chat.title)}${renderBadges(chat.badges, false)}</div>
-            <p class="text-xs text-slate-500 dark:text-[#8d887c] mt-2">${escapeHtml(chat.description || '')}</p>
+            <div class="font-bold text-lg flex items-center justify-center gap-1.5 flex-wrap">${escapeHtml(chat.title)}${renderBadges(chat.badges, false)}</div>
+            <div class="text-xs hg-accent-text font-medium mt-0.5">${chat.type === 'channel' ? 'Канал' : 'Группа'}${chat.handle ? ' • @' + escapeHtml(chat.handle) : ''}</div>
+            <div class="text-[11px] text-slate-500 dark:text-[#8d887c] mt-1">${chat.type === 'channel' ? 'Подписчиков' : 'Участников'}: ${memberObjs.length} • ${chat.isPublic !== false ? 'Публичный' : 'Приватный'}</div>
+            ${chat.slowModeSec > 0 ? `<div class="mt-1.5 inline-block px-2 py-0.5 rounded hg-accent-soft hg-accent-text text-[10px] font-bold">Slow Mode: ${chat.slowModeSec}с</div>` : ''}
+            ${chat.description ? `<p class="mt-3 p-3 rounded-xl bg-slate-100 dark:bg-[#262421] text-xs text-slate-700 dark:text-slate-300 text-left">${escapeHtml(chat.description)}</p>` : ''}
           </div>
+
+          ${(!isSys && chat.inviteCode && (isMem || canManage)) ? `
+            <div class="p-3 rounded-2xl bg-slate-100 dark:bg-[#262421] border border-slate-200 dark:border-[#36322e] space-y-2">
+              <div class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-[#8d887c]">Код приглашения</div>
+              <div class="flex items-center justify-between gap-2">
+                <code class="text-sm font-bold tracking-wider hg-accent-text">${escapeHtml(chat.inviteCode)}</code>
+                <div class="flex gap-1">
+                  <button onclick="copyInviteCode('${escapeHtml(chat.inviteCode)}')" class="px-2.5 py-1 rounded-lg hg-accent-bg text-white text-[11px] font-bold">Копировать</button>
+                  ${canManage ? `<button onclick="regenerateInviteCode('${chat.id}')" title="Сбросить код" class="px-2 py-1 rounded-lg border border-slate-300 dark:border-[#403b36] text-[11px]">↻</button>` : ''}
+                </div>
+              </div>
+            </div>
+          ` : ''}
+
+          ${(!isSys && !isMem) ? `
+            <button onclick="joinChatById('${chat.id}')" class="w-full py-2.5 rounded-xl hg-accent-bg text-white text-xs font-bold transition">${chat.type === 'channel' ? 'Подписаться на канал' : 'Вступить в группу'}</button>
+          ` : ''}
+
+          ${(!isSys && isMem && !owner) ? `
+            <button onclick="leaveChat('${chat.id}')" class="w-full py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 text-xs font-semibold transition">${chat.type === 'channel' ? 'Отписаться от канала' : 'Выйти из группы'}</button>
+          ` : ''}
         `;
       }
     }
@@ -2702,17 +3647,50 @@
 
     window.setAdminTab = function(tab) {
       adminTab = tab;
-      document.getElementById('adminTabUsers').className = tab === 'users'
-        ? 'px-3.5 py-2 rounded-xl text-xs font-semibold hg-accent-bg text-white'
-        : 'px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-500 dark:text-[#8d887c] hover:bg-slate-100 dark:hover:bg-[#2a2724]';
-      document.getElementById('adminTabBroadcast').className = tab === 'broadcast'
-        ? 'px-3.5 py-2 rounded-xl text-xs font-semibold hg-accent-bg text-white'
-        : 'px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-500 dark:text-[#8d887c] hover:bg-slate-100 dark:hover:bg-[#2a2724]';
+      [['adminTabUsers', 'users'], ['adminTabChats', 'chats'], ['adminTabBroadcast', 'broadcast']].forEach(([id, key]) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.className = tab === key
+          ? 'px-3.5 py-2 rounded-xl text-xs font-semibold hg-accent-bg text-white'
+          : 'px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-500 dark:text-[#8d887c] hover:bg-slate-100 dark:hover:bg-[#2a2724]';
+      });
       renderAdminModal();
     };
 
     function renderAdminModal() {
       const body = document.getElementById('adminModalBody');
+      if (adminTab === 'chats') {
+        const list = Object.values(chatsMap).filter(c => c.type === 'group' || c.type === 'channel');
+        body.innerHTML = `
+          <div class="space-y-2.5">
+            ${list.map(c => {
+              const b = c.badges || {};
+              return `
+                <div class="p-3.5 rounded-2xl bg-slate-100/80 dark:bg-[#2a2724] border border-slate-200 dark:border-[#36322e] space-y-2.5">
+                  <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                      ${avatarBoxHtml(c, 'w-10 h-10 rounded-xl text-xs')}
+                      <div class="min-w-0">
+                        <div class="font-semibold text-sm flex items-center gap-1 truncate">${escapeHtml(c.title)}${renderBadges(b, true)}</div>
+                        <div class="text-xs text-slate-500 dark:text-[#8d887c]">${c.type === 'channel' ? 'Канал' : 'Группа'}${c.handle ? ' • @' + escapeHtml(c.handle) : ''} • Участников: ${getChatMemberCount(c)}</div>
+                      </div>
+                    </div>
+                    ${!isSystemChat(c) ? `<button onclick="deleteCustomChat('${c.id}')" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-red-500/15 text-red-500">Удалить</button>` : '<span class="px-2.5 py-1 rounded-lg hg-accent-soft hg-accent-text text-[11px] font-bold">Системный</span>'}
+                  </div>
+                  <div class="flex flex-wrap gap-1.5">
+                    <button onclick="adminToggleChatBadge('${c.id}','verified')" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold border ${b.verified ? 'bg-sky-500 text-white border-sky-500' : 'border-slate-300 dark:border-[#403b36]'}">✅ Верификация</button>
+                    <button onclick="adminToggleChatBadge('${c.id}','premium')" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold border ${b.premium ? 'bg-amber-500 text-white border-amber-500' : 'border-slate-300 dark:border-[#403b36]'}">⭐ VIP</button>
+                    <button onclick="adminToggleChatBadge('${c.id}','staff')" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold border ${b.staff ? 'bg-indigo-500 text-white border-indigo-500' : 'border-slate-300 dark:border-[#403b36]'}">STAFF</button>
+                    <button onclick="adminToggleChatBadge('${c.id}','scam')" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold border ${b.scam ? 'bg-red-500 text-white border-red-500' : 'border-slate-300 dark:border-[#403b36]'}">⚠️ SCAM</button>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+        return;
+      }
+
       if (adminTab === 'broadcast') {
         body.innerHTML = `
           <div class="space-y-3">
@@ -2770,6 +3748,14 @@
     window.setAdminSearch = function(val) {
       adminSearch = val;
       renderAdminModal();
+    };
+
+    window.adminToggleChatBadge = async function(chatId, badgeKey) {
+      if (!isAdmin() || !chatsMap[chatId]) return;
+      const badges = { ...(chatsMap[chatId].badges || {}) };
+      badges[badgeKey] = !badges[badgeKey];
+      await dbUpdate('hg_chats', chatId, { badges });
+      showToast('Значок чата обновлён', 'success');
     };
 
     window.adminToggleBadge = async function(userId, badgeKey) {
@@ -2888,9 +3874,11 @@
         return;
       }
       if (e.key === 'Escape') {
+        closeCreateChatModal();
         closeSettingsModal();
         closeAdminModal();
         closeDrawer();
+        if (inChatSearchOpen) toggleChatSearch(false);
       }
     });
 
