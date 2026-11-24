@@ -2703,6 +2703,18 @@
       }
     }
 
+    window.restoreHiddenChats = async function() {
+      const userHidden = Array.isArray(usersMap[currentUserId]?.hiddenChats) ? usersMap[currentUserId].hiddenChats : [];
+      const total = new Set([...(settings.hiddenChats || []), ...userHidden]).size;
+      await persistHiddenChats([]);
+      if (currentUserId && usersMap[currentUserId] && usersMap[currentUserId].hgSettings) {
+        const nextHgSettings = { ...usersMap[currentUserId].hgSettings, hiddenChats: [] };
+        await dbUpdate('hg_users', currentUserId, { hgSettings: nextHgSettings }).catch(() => {});
+      }
+      renderIfLoggedIn();
+      showToast(total > 0 ? `Восстановлено скрытых чатов: ${total}` : 'Скрытых чатов не было', 'success');
+    };
+
     async function hideChatForMe(chatId) {
       const chat = chatsMap[chatId];
       if (!chat || !currentUserId) return;
@@ -3933,7 +3945,8 @@
             <div class="p-4 rounded-2xl bg-slate-100/70 dark:bg-[#262421] border border-slate-200 dark:border-[#36322e] space-y-3">
               <div class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-[#8d887c]">Экспорт и сброс</div>
               <div class="flex flex-wrap gap-2">
-                <button onclick="exportChatsJson()" class="px-4 py-2.5 rounded-xl hg-accent-bg text-white text-xs font-bold transition">Скачать экспорт чатов (.json)</button>
+                <button onclick="restoreHiddenChats()" class="px-4 py-2.5 rounded-xl hg-accent-bg text-white text-xs font-bold transition">Восстановить скрытые чаты</button>
+                <button onclick="exportChatsJson()" class="px-4 py-2.5 rounded-xl border border-slate-300 dark:border-[#36322e] hover:bg-slate-200/60 dark:hover:bg-[#2a2724] text-xs font-semibold transition">Скачать экспорт чатов (.json)</button>
                 <button onclick="resetAllSettings()" class="px-4 py-2.5 rounded-xl bg-red-500/15 text-red-500 hover:bg-red-500/25 text-xs font-bold transition">Сбросить настройки по умолчанию</button>
               </div>
             </div>
