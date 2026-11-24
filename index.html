@@ -2678,6 +2678,34 @@
       }
     };
 
+    // =========================================================
+    // PUSH-УВЕДОМЛЕНИЯ (FCM): СОСТОЯНИЕ ЭКРАНА И ВЫЗОВ WORKER
+    // =========================================================
+    const PUSH_WORKER_URL = 'https://hypergram-push.zeqbpes.workers.dev';
+
+    function syncPushPresenceState() {
+      window.activeChatId = activeChatId;
+      if (!currentUserId || !usersMap[currentUserId]) return;
+      const pinLocked = !document.getElementById('pinLockScreen')?.classList.contains('hidden');
+      const chatArea = document.getElementById('chatArea');
+      const isChatVisible = !!chatArea && window.getComputedStyle(chatArea).display !== 'none';
+      const chatVisible = !!activeChatId && !document.hidden && !pinLocked && isChatVisible;
+      dbUpdate('hg_users', currentUserId, {
+        activePushChatId: chatVisible ? activeChatId : '',
+        isAppForeground: !document.hidden && !pinLocked,
+        pushUpdatedAt: Date.now()
+      }).catch(() => {});
+    }
+
+    function triggerPushWorkerForMessage(messageId) {
+      if (!messageId || !PUSH_WORKER_URL) return;
+      fetch(PUSH_WORKER_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messageId })
+      }).catch(e => console.warn('Push worker call failed:', e));
+    }
+
     function loginSuccess(uid, restored = false) {
       resetReadCursorsCache();
       currentUserId = uid;
@@ -2688,6 +2716,8 @@
 
       saveSession(uid, restored);
       hideSessionLoader(false);
+      window.activeChatId = activeChatId;
+      syncPushPresenceState();
       startCallListeners(uid);
       if (usersMap[uid]) {
         const loginPatch = { isOnline: !document.hidden, lastSeenAt: Date.now() };
@@ -2958,7 +2988,7 @@
       saveLastChat();
       if (uid && usersMap[uid]) {
         lastPresenceSentAt = 0;
-        dbUpdate('hg_users', uid, { isOnline: false, lastSeenAt: Date.now(), lastLogoutAt: Date.now() }).catch(() => {});
+        dbUpdate('hg_users', uid, { isOnline: false, isAppForeground: false, activePushChatId: '', lastSeenAt: Date.now(), lastLogoutAt: Date.now() }).catch(() => {});
       }
       clearSession();
       currentUserId = null;
@@ -3297,6 +3327,7 @@
       }
       activeChatId = chatId;
       saveLastChat();
+      syncPushPresenceState();
       cancelReply();
       clearPendingMedia();
       if (window.innerWidth < 768) {
@@ -3316,6 +3347,7 @@
       document.getElementById('leftSidebar').classList.remove('hidden');
       document.getElementById('chatArea').classList.add('hidden');
       document.getElementById('chatArea').classList.remove('flex');
+      syncPushPresenceState();
     };
 
     window.startDm = async function(peerId) {
@@ -3583,6 +3615,7 @@
       };
       if (mediaPayload) msgDoc.media = mediaPayload;
       await dbSet('hg_messages', id, msgDoc);
+      triggerPushWorkerForMessage(id);
     };
 
     window.quickReactMsg = function(msgId) {
@@ -4734,8 +4767,10 @@
       if (document.hidden) {
         notifyTyping(false);
         updateMyPresence(false, true);
+        syncPushPresenceState();
       } else {
         updateMyPresence(true, true);
+        syncPushPresenceState();
         if (currentUserId && settings.pinCode && (Number(settings.pinTimeoutSec) || 0) > 0 && isPinRequiredNow(currentUserId)) {
           lockScreenNow(false);
         } else {
