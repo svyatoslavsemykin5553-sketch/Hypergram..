@@ -193,39 +193,28 @@
       </div>
 
       <!-- Форма -->
-      <p id="authHint" class="text-xs text-slate-500 dark:text-[#8d887c] leading-snug"></p>
-      <form id="authForm" onsubmit="handleAuthSubmit(event)" class="space-y-4" novalidate>
+      <form id="authForm" onsubmit="handleAuthSubmit(event)" class="space-y-4">
         <div id="registerNameField" class="hidden">
-          <label class="block text-xs font-semibold text-slate-500 dark:text-[#8d887c] mb-1.5">Имя</label>
+          <label class="block text-xs font-semibold text-slate-500 dark:text-[#8d887c] mb-1.5">Отображаемое имя</label>
           <input id="authDisplayName" type="text" placeholder="Например: Алексей" class="w-full px-4 py-3 rounded-xl bg-slate-100 dark:bg-[#262421] text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/60 transition" />
         </div>
-        <div id="usernameField" class="hidden">
-          <label class="block text-xs font-semibold text-slate-500 dark:text-[#8d887c] mb-1.5">Юзернейм</label>
-          <input id="authUsername" type="text" placeholder="@username" autocomplete="username" class="w-full px-4 py-3 rounded-xl bg-slate-100 dark:bg-[#262421] text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/60 transition" />
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 dark:text-[#8d887c] mb-1.5">Логин (никнейм)</label>
+          <input id="authUsername" type="text" required placeholder="@username" autocomplete="username" class="w-full px-4 py-3 rounded-xl bg-slate-100 dark:bg-[#262421] text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/60 transition" />
         </div>
-        <div id="emailField">
-          <label class="block text-xs font-semibold text-slate-500 dark:text-[#8d887c] mb-1.5">Почта</label>
-          <input id="authEmail" type="email" placeholder="you@example.com" autocomplete="email" class="w-full px-4 py-3 rounded-xl bg-slate-100 dark:bg-[#262421] text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/60 transition" />
-        </div>
-        <div id="legacyPassField" class="hidden">
-          <label class="block text-xs font-semibold text-slate-500 dark:text-[#8d887c] mb-1.5">Старый пароль</label>
-          <input id="authPassword" type="password" placeholder="Пароль от аккаунта" autocomplete="current-password" class="w-full px-4 py-3 rounded-xl bg-slate-100 dark:bg-[#262421] text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/60 transition" />
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 dark:text-[#8d887c] mb-1.5">Пароль</label>
+          <input id="authPassword" type="password" required placeholder="Введите пароль" autocomplete="current-password" class="w-full px-4 py-3 rounded-xl bg-slate-100 dark:bg-[#262421] text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/60 transition" />
         </div>
 
         <div id="authError" class="hidden p-3 rounded-xl bg-red-500/15 border border-red-500/30 text-red-400 text-xs font-medium text-center"></div>
 
-        <button id="authSubmitBtn" type="submit" class="w-full py-3 rounded-xl hg-accent-bg text-white font-semibold text-sm tracking-wide transition active:translate-y-px disabled:opacity-60">
-          Получить ссылку для входа
+        <button id="authSubmitBtn" type="submit" class="w-full py-3 rounded-xl hg-accent-bg text-white font-semibold text-sm tracking-wide transition active:translate-y-px">
+          Войти в HYPERGRAM
         </button>
-        <button id="legacyToggle" type="button" onclick="toggleLegacyMode()" class="w-full text-center text-[11px] text-slate-400 dark:text-[#8d887c] hover:underline"></button>
       </form>
-
-      <div id="authSent" class="hidden space-y-4 text-center">
-        <div class="text-4xl">✉️</div>
-        <p class="text-sm">Письмо отправлено на <b id="authSentEmail" class="break-all"></b></p>
-        <p class="text-xs text-slate-500 dark:text-[#8d887c] leading-snug">Откройте письмо и нажмите на ссылку — вход произойдёт автоматически. Если письма нет, проверьте папку «Спам». Ссылку нужно открыть в этом же браузере.</p>
-        <button type="button" onclick="backToAuthForm()" class="w-full py-2.5 rounded-xl border border-slate-300 dark:border-[#36322e] text-xs font-semibold hover:bg-slate-100 dark:hover:bg-[#2a2724] transition">Изменить почту / отправить снова</button>
-      </div>
 
       <div id="syncStatusBadge" class="text-center text-[11px] text-slate-400 dark:text-[#8d887c]">
         Подключение к серверу...
@@ -241,20 +230,6 @@
   <!-- =========================================================
        ОСНОВНОЙ ИНТЕРФЕЙС МЕССЕНДЖЕРА
   ========================================================== -->
-  <!-- Заставка: пока восстанавливается сохранённая сессия, форму входа не показываем -->
-  <div id="sessionLoader" class="hidden fixed inset-0 z-[55] flex items-center justify-center bg-[#121110]">
-    <div class="font-display text-4xl font-extrabold text-white">hypergram<span class="hg-accent-text">.</span></div>
-  </div>
-  <script>
-    try {
-      var s = JSON.parse(localStorage.getItem('hypergram_session_v1') || 'null');
-      if (s && s.userId) {
-        document.getElementById('sessionLoader').classList.remove('hidden');
-        document.getElementById('authScreen').classList.add('hidden');
-      }
-    } catch (e) {}
-  </script>
-
   <div id="app" class="hidden h-screen w-screen flex overflow-hidden relative bg-slate-100 dark:bg-[#121110] text-slate-900 dark:text-slate-100 transition-colors duration-200">
 
     <!-- ЛЕВАЯ ПАНЕЛЬ: Список чатов -->
@@ -628,7 +603,7 @@
        ЛОГИКА FIREBASE FIRESTORE + РЕЗЕРВНЫЙ РЕЖИМ + НАСТРОЙКИ
   ========================================================== -->
   <script type="module">
-    let initializeApp, getAuth, signInAnonymously, signInWithCustomToken, isSignInWithEmailLink, sendSignInLinkToEmail, signInWithEmailLink;
+    let initializeApp, getAuth, signInAnonymously, signInWithCustomToken;
     let getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, collection, onSnapshot, query, orderBy, limit;
     let fbStorage = null, storageModRef = null;
 
@@ -786,11 +761,6 @@
     const ADMIN_HASH = '807bf9b0444fba2506169bbd8185aab79066bd33275218725fbc2d7f78557c61';
     const DANYA_SALT = 'hypergram-admin-danya';
     const DANYA_HASH = 'd4df6168b8dee3a73198cc42318df2aed1c2f44fb1ab7af5d177962578d19b69';
-    // Почты админов (хранится только хеш): к этим аккаунтам вход по ссылке из письма
-    const ADMIN_EMAIL_HASHES = {
-      danya: '03261db1f756c68aa08350eaf6e4a64ee6c663f1ac595173a870cdfdc0138ce7',
-      hypergram: '05a5cbae22584e4de8ec5755d9624728a3e1c74943e38b073c48f4f300ee8b50'
-    };
     const HASH_ROUNDS = 5000;
     const MESSAGES_LIMIT = 300;
     const textEnc = new TextEncoder();
@@ -876,7 +846,6 @@
     const TYPING_TTL = 6000;
     const typingSeenMap = {}; // { userId: { chatId, typingAt, localSeenAt } }
     let usersSnapInitialized = false;
-    let usersServerSynced = false;
 
     function syncTypingSeen(nextUsers) {
       const now = Date.now();
@@ -1904,9 +1873,6 @@
     const FALLBACK_KEY = 'hypergram_fallback_db_v2';
     const SESSION_KEY = 'hypergram_session_v1';
     const LAST_LOGIN_KEY = 'hypergram_last_login_v1';
-    const LAST_EMAIL_KEY = 'hypergram_last_email_v1';
-    const EMAIL_PENDING_KEY = 'hypergram_email_pending_v1';
-    const EMAIL_PEPPER = 'hypergram-email-v1';
     const LAST_CHAT_KEY = 'hypergram_last_chat_v1';
     const SETTINGS_KEY = 'hypergram_settings_v1';
     const PIN_UNLOCKED_KEY = 'hypergram_pin_unlocked_v1';
@@ -2040,25 +2006,11 @@
       return doc(db, 'artifacts', appId, 'public', 'data', 'hg_sessions', cloudUid);
     }
 
-    function hideSessionLoader(showAuth) {
-      const l = document.getElementById('sessionLoader');
-      if (l) l.classList.add('hidden');
-      if (showAuth && !currentUserId) document.getElementById('authScreen').classList.remove('hidden');
-    }
-
-    // Сессия живёт, пока вы сами не нажмёте «Выйти» (как в Telegram)
-    function saveSession(uid, restored = false) {
-      const prev = readJson(SESSION_KEY, null);
-      const data = {
-        userId: uid,
-        loginAt: (prev && prev.userId === uid && prev.loginAt) || Date.now(),
-        lastSeen: Date.now()
-      };
+    function saveSession(uid) {
+      const data = { userId: uid, loginAt: Date.now() };
       writeJson(SESSION_KEY, data);
       store.set(LAST_LOGIN_KEY, uid);
       if (useCloud && db && cloudUid) {
-        const sameInCloud = cloudSession && cloudSession.userId === uid;
-        if (restored && sameInCloud) return;
         cloudSession = data;
         setDoc(sessionDocRef(), data).catch(e => console.warn('Не удалось сохранить сессию в облаке:', e));
       }
@@ -2081,22 +2033,20 @@
       return id && chatsMap[id] ? id : 'global_chat';
     }
     function prefillLastLogin() {
-      const last = store.get(LAST_EMAIL_KEY);
-      const el = document.getElementById('authEmail');
-      if (last && el && !el.value) el.value = last;
+      const last = store.get(LAST_LOGIN_KEY);
+      if (last) document.getElementById('authUsername').value = last;
     }
 
     function tryRestoreSession(authoritative = true) {
       if (sessionRestoreDone || currentUserId) return;
-      const session = readJson(SESSION_KEY, null) || cloudSession;
-      if (!session || !session.userId) { sessionRestoreDone = true; hideSessionLoader(true); return; }
+      const session = cloudSession || readJson(SESSION_KEY, null);
+      if (!session || !session.userId) { sessionRestoreDone = true; return; }
       if (usersMap[session.userId]) {
         sessionRestoreDone = true;
         loginSuccess(session.userId, true);
       } else if (authoritative && Object.keys(usersMap).length > 0) {
         sessionRestoreDone = true;
         clearSession();
-        hideSessionLoader(true);
       }
     }
 
@@ -2177,19 +2127,6 @@
       return true;
     }
 
-    async function bindAdminEmails() {
-      for (const [uid, h] of Object.entries(ADMIN_EMAIL_HASHES)) {
-        try {
-          let cur = null;
-          if (useCloud && db) {
-            const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'hg_users', uid));
-            cur = snap.exists() ? snap.data() : null;
-          } else cur = usersMap[uid] || null;
-          if (cur && !cur.emailHash) await dbUpdate('hg_users', uid, { emailHash: h });
-        } catch (e) { console.warn('bindAdminEmails:', e); }
-      }
-    }
-
     let seedPromise = null;
     function ensureSeedData() {
       if (!seedPromise) seedPromise = runSeed().catch(e => { console.warn('Seed error:', e); seedPromise = null; });
@@ -2266,7 +2203,6 @@
           readBy: ['hypergram']
         });
       }
-      await bindAdminEmails();
     }
 
     let connectError = null;
@@ -2294,7 +2230,7 @@
             import(FB + 'firebase-firestore.js')
           ]);
           ({ initializeApp } = appMod);
-          ({ getAuth, signInAnonymously, signInWithCustomToken, isSignInWithEmailLink, sendSignInLinkToEmail, signInWithEmailLink } = authMod);
+          ({ getAuth, signInAnonymously, signInWithCustomToken } = authMod);
           ({ getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, collection, onSnapshot, query, orderBy, limit } = fsMod);
 
           const app = initializeApp(fbCfg);
@@ -2328,7 +2264,6 @@
             const next = {};
             snap.forEach(d => { next[d.id] = d.data(); });
             usersMap = next;
-            if (!snap.metadata.fromCache) usersServerSynced = true;
             syncPresenceSeen(next);
             syncTypingSeen(next);
             tryRestoreSession(!snap.metadata.fromCache);
@@ -2360,7 +2295,6 @@
           }, (err) => reportSyncError('Messages', err));
 
           await ensureSeedData();
-          await completeEmailLinkSignIn().catch(e => console.warn('Email link:', e));
           return;
         }
       } catch (err) {
@@ -2589,195 +2523,100 @@
     };
 
     // =========================================================
-    // АВТОРИЗАЦИЯ ПО ССЫЛКЕ ИЗ ПОЧТЫ (Firebase Email Link, без паролей)
+    // АВТОРИЗАЦИЯ И РЕГИСТРАЦИЯ
     // =========================================================
-    const TAB_ON = 'py-2 rounded-xl text-sm font-semibold hg-accent-bg text-white transition';
-    const TAB_OFF = 'py-2 rounded-xl text-sm font-semibold text-slate-500 dark:text-[#8d887c] hover:text-slate-900 dark:hover:text-white transition';
-
-    function showAuthError(msg) {
-      const el = document.getElementById('authError');
-      el.textContent = msg;
-      el.classList.remove('hidden');
-    }
-    function isValidEmail(e) { return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e); }
-
-    // В общей базе хранится только хеш почты, а не сама почта
-    async function emailHash(email) {
-      const h = await sha256(textEnc.encode(EMAIL_PEPPER + ':' + email.trim().toLowerCase()));
-      return Array.from(h, x => x.toString(16).padStart(2, '0')).join('');
-    }
-    function findUserByEmailHash(h) {
-      return Object.values(usersMap).find(u => u && u.emailHash === h) || null;
-    }
-    async function waitForUsers(ms = 8000) {
-      const t = Date.now();
-      while (!usersServerSynced && Date.now() - t < ms) await new Promise(r => setTimeout(r, 150));
-    }
-    async function isUsernameTaken(uid) {
-      if (usersMap[uid]) return true;
-      try { return await docExists('hg_users', uid); } catch (e) { return false; }
-    }
-    async function verifyLegacyPassword(user, password) {
-      if (user.passHash) return (await hashPassword(password, user.salt || '')) === user.passHash;
-      if (user.password) return user.password === password;
-      return false;
-    }
-
     window.setAuthMode = function(mode) {
       authMode = mode;
-      const isReg = mode === 'register', isLegacy = mode === 'legacy';
       document.getElementById('authError').classList.add('hidden');
-      document.getElementById('authSent').classList.add('hidden');
-      document.getElementById('authForm').classList.remove('hidden');
+      const isReg = mode === 'register';
       document.getElementById('registerNameField').classList.toggle('hidden', !isReg);
-      document.getElementById('usernameField').classList.toggle('hidden', !(isReg || isLegacy));
-      document.getElementById('legacyPassField').classList.toggle('hidden', !isLegacy);
-      document.getElementById('authSubmitBtn').textContent =
-        isReg ? 'Создать аккаунт' : isLegacy ? 'Привязать почту' : 'Получить ссылку для входа';
-      document.getElementById('authHint').textContent =
-        isReg ? 'Укажите имя, юзернейм и почту — мы отправим ссылку для подтверждения.'
-        : isLegacy ? 'Введите логин и пароль старого аккаунта и почту, которую к нему привязать. Пароль нужен только один раз.'
-        : 'Введите почту — мы отправим на неё ссылку для входа. Пароль не нужен.';
-      document.getElementById('legacyToggle').textContent =
-        isLegacy ? '← Назад ко входу по почте' : 'Старый аккаунт с паролем? Привязать почту';
-      document.getElementById('tabLogin').className = mode === 'login' ? TAB_ON : TAB_OFF;
-      document.getElementById('tabRegister').className = isReg ? TAB_ON : TAB_OFF;
+      document.getElementById('authSubmitBtn').textContent = isReg ? 'Создать аккаунт' : 'Войти в HYPERGRAM';
+      document.getElementById('tabLogin').className = !isReg
+        ? 'py-2 rounded-xl text-sm font-semibold hg-accent-bg text-white transition'
+        : 'py-2 rounded-xl text-sm font-semibold text-slate-500 dark:text-[#8d887c] transition';
+      document.getElementById('tabRegister').className = isReg
+        ? 'py-2 rounded-xl text-sm font-semibold hg-accent-bg text-white transition'
+        : 'py-2 rounded-xl text-sm font-semibold text-slate-500 dark:text-[#8d887c] transition';
     };
-    window.toggleLegacyMode = function() { setAuthMode(authMode === 'legacy' ? 'login' : 'legacy'); };
-    window.backToAuthForm = function() { setAuthMode(authMode); };
-
-    function emailErrorText(err) {
-      switch (err && err.code) {
-        case 'auth/operation-not-allowed': return 'В Firebase не включён вход по ссылке (Authentication → Sign-in method → Email link).';
-        case 'auth/unauthorized-continue-uri': return 'Адрес сайта не добавлен в Firebase (Authentication → Settings → Authorized domains).';
-        case 'auth/invalid-continue-uri': return 'Откройте мессенджер по адресу http(s)://, а не как локальный файл.';
-        case 'auth/too-many-requests': return 'Слишком много запросов. Подождите немного и попробуйте снова.';
-        case 'auth/invalid-email': return 'Некорректный адрес почты.';
-        default: return 'Не удалось отправить письмо: ' + ((err && (err.code || err.message)) || err);
-      }
-    }
-
-    async function sendEmailLink(email, pending) {
-      const btn = document.getElementById('authSubmitBtn');
-      btn.disabled = true;
-      try {
-        await sendSignInLinkToEmail(auth, email, { url: location.origin + location.pathname, handleCodeInApp: true });
-        writeJson(EMAIL_PENDING_KEY, { ...pending, email, ts: Date.now() });
-        store.set(LAST_EMAIL_KEY, email);
-        document.getElementById('authSentEmail').textContent = email;
-        document.getElementById('authForm').classList.add('hidden');
-        document.getElementById('authSent').classList.remove('hidden');
-      } catch (err) {
-        showAuthError(emailErrorText(err));
-      } finally {
-        btn.disabled = false;
-      }
-    }
 
     window.handleAuthSubmit = async function(e) {
       e.preventDefault();
-      document.getElementById('authError').classList.add('hidden');
+      const errEl = document.getElementById('authError');
+      errEl.classList.add('hidden');
 
-      const email = document.getElementById('authEmail').value.trim().toLowerCase();
+      const rawUser = document.getElementById('authUsername').value.trim();
+      const password = document.getElementById('authPassword').value.trim();
       const displayName = document.getElementById('authDisplayName').value.trim();
-      const uid = normalizeId(document.getElementById('authUsername').value);
-      const password = document.getElementById('authPassword').value;
+      const uid = normalizeId(rawUser);
 
-      if (!useCloud || !auth) return showAuthError('Вход по почте работает только при подключении к облаку HYPERGRAM.');
-      if (!/^https?:$/.test(location.protocol)) return showAuthError('Откройте мессенджер по адресу http(s)://, а не как локальный файл — иначе ссылка из письма не сработает.');
-      if (!isValidEmail(email)) return showAuthError('Введите корректный адрес почты.');
-
-      const eh = await emailHash(email);
-      const owner = findUserByEmailHash(eh);
-      const pending = { mode: authMode };
-
-      if (authMode === 'login') {
-        if (!owner) return showAuthError('Аккаунт с такой почтой не найден. Зарегистрируйтесь или привяжите почту к старому аккаунту.');
-      } else if (authMode === 'register') {
-        if (!displayName) return showAuthError('Введите имя.');
-        if (!uid || uid.length < 2) return showAuthError('Юзернейм должен содержать минимум 2 символа.');
-        if (await isUsernameTaken(uid)) return showAuthError('Этот юзернейм уже занят.');
-        if (owner) return showAuthError('Эта почта уже зарегистрирована — перейдите на вкладку «Вход».');
-        Object.assign(pending, { uid, displayName });
-      } else {
-        if (!uid || !password) return showAuthError('Введите юзернейм и старый пароль.');
-        const user = usersMap[uid];
-        if (!user || user.emailHash || !(await verifyLegacyPassword(user, password))) {
-          return showAuthError(user && user.emailHash ? 'К этому аккаунту уже привязана почта — войдите по ссылке.' : 'Неверный юзернейм или пароль.');
-        }
-        if (owner) return showAuthError('Эта почта уже привязана к другому аккаунту.');
-        Object.assign(pending, { uid, legacyPw: password });
-      }
-      await sendEmailLink(email, pending);
-    };
-
-    async function createAccount(uid, displayName, eh) {
-      const initials = displayName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || 'HG';
-      const color = AVATAR_GRADIENTS[Math.floor(Math.random() * AVATAR_GRADIENTS.length)];
-      await dbSet('hg_users', uid, {
-        id: uid,
-        username: '@' + uid,
-        displayName: displayName,
-        emailHash: eh,
-        role: 'user',
-        avatarColor: color,
-        initials: initials,
-        avatarUrl: '',
-        bio: '',
-        status: 'online',
-        badges: { verified: false, premium: false, staff: false, scam: false },
-        customTitle: '',
-        banned: false,
-        createdAt: Date.now()
-      });
-    }
-
-    // Вызывается при загрузке страницы: если открыта ссылка из письма — завершает вход
-    async function completeEmailLinkSignIn() {
-      const href = window.location.href;
-      if (!isSignInWithEmailLink(auth, href)) return;
-      const cleanUrl = () => { try { history.replaceState(null, '', location.pathname); } catch (e) {} };
-
-      let pending = readJson(EMAIL_PENDING_KEY, null);
-      if (pending && Date.now() - (pending.ts || 0) > 3600000) pending = null;
-      const email = ((pending && pending.email) || window.prompt('Подтвердите почту, на которую пришла ссылка:') || '').trim().toLowerCase();
-      if (!email) { cleanUrl(); return; }
-
-      let cred;
-      try {
-        cred = await signInWithEmailLink(auth, email, href);
-      } catch (err) {
-        cleanUrl();
-        showAuthError('Ссылка недействительна или устарела. Запросите новую.');
+      if (!uid || uid.length < 2) {
+        errEl.textContent = 'Логин должен содержать минимум 2 символа.';
+        errEl.classList.remove('hidden');
         return;
       }
-      cleanUrl();
-      removeKey(EMAIL_PENDING_KEY);
-      cloudUid = cred.user.uid;
 
-      await waitForUsers();
-      const verified = (cred.user.email || email).toLowerCase();
-      const eh = await emailHash(verified);
-      store.set(LAST_EMAIL_KEY, verified);
-
-      const owner = findUserByEmailHash(eh);
-      if (owner) { loginSuccess(owner.id); return; }
-
-      if (pending && pending.mode === 'register' && pending.uid) {
-        if (await isUsernameTaken(pending.uid)) return showAuthError('Этот юзернейм уже занят. Зарегистрируйтесь заново.');
-        await createAccount(pending.uid, pending.displayName || pending.uid, eh);
-        loginSuccess(pending.uid);
-      } else if (pending && pending.mode === 'legacy' && pending.uid) {
-        const user = usersMap[pending.uid];
-        if (!user || user.emailHash || !(await verifyLegacyPassword(user, pending.legacyPw || ''))) {
-          return showAuthError('Не удалось привязать почту к старому аккаунту. Попробуйте ещё раз.');
+      if (authMode === 'login') {
+        const user = usersMap[uid];
+        let okPass = false;
+        if (user && user.passHash) {
+          okPass = (await hashPassword(password, user.salt || '')) === user.passHash;
+        } else if (user && user.password) {
+          okPass = user.password === password;
+          if (okPass) {
+            const salt = newSalt();
+            dbUpdate('hg_users', uid, { passHash: await hashPassword(password, salt), salt, password: '' }).catch(() => {});
+          }
         }
-        await dbUpdate('hg_users', pending.uid, { emailHash: eh, passHash: '', salt: '', password: '' });
-        loginSuccess(pending.uid);
+        if (!okPass) {
+          errEl.textContent = 'Неверный логин или пароль.';
+          errEl.classList.remove('hidden');
+          return;
+        }
+        loginSuccess(uid);
       } else {
-        showAuthError('Аккаунт с такой почтой не найден. Зарегистрируйтесь или привяжите почту к старому аккаунту.');
+        if (!displayName) {
+          errEl.textContent = 'Введите отображаемое имя.';
+          errEl.classList.remove('hidden');
+          return;
+        }
+        if (password.length < 4) {
+          errEl.textContent = 'Пароль должен быть не короче 4 символов.';
+          errEl.classList.remove('hidden');
+          return;
+        }
+        let taken = !!usersMap[uid];
+        try { if (!taken) taken = await docExists('hg_users', uid); } catch (err) { console.warn(err); }
+        if (taken) {
+          errEl.textContent = 'Этот логин уже занят.';
+          errEl.classList.remove('hidden');
+          return;
+        }
+        const salt = newSalt();
+        const passHash = await hashPassword(password, salt);
+
+        const initials = displayName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || 'HG';
+        const color = AVATAR_GRADIENTS[Math.floor(Math.random() * AVATAR_GRADIENTS.length)];
+
+        await dbSet('hg_users', uid, {
+          id: uid,
+          username: '@' + uid,
+          displayName: displayName,
+          passHash: passHash,
+          salt: salt,
+          role: 'user',
+          avatarColor: color,
+          initials: initials,
+          avatarUrl: '',
+          bio: '',
+          status: 'online',
+          badges: { verified: false, premium: false, staff: false, scam: false },
+          customTitle: '',
+          banned: false,
+          createdAt: Date.now()
+        });
+        loginSuccess(uid);
       }
-    }
+    };
 
     function loginSuccess(uid, restored = false) {
       resetReadCursorsCache();
@@ -2787,8 +2626,7 @@
       document.getElementById('authForm').reset();
       activeChatId = getLastChat(uid);
 
-      saveSession(uid, restored);
-      hideSessionLoader(false);
+      saveSession(uid);
       if (usersMap[uid]) {
         const loginPatch = { isOnline: !document.hidden, lastSeenAt: Date.now() };
         if (!restored) loginPatch.lastLoginAt = Date.now();
@@ -3923,6 +3761,17 @@
 
               <button onclick="saveProfileDetails()" class="px-5 py-2.5 rounded-xl hg-accent-bg text-white text-xs font-bold transition">Сохранить профиль</button>
             </div>
+
+            <!-- Смена пароля -->
+            <form autocomplete="off" onsubmit="event.preventDefault(); changeUserPassword();" class="pt-4 border-t border-slate-200 dark:border-[#2e2b28] space-y-3">
+              <input type="text" name="hg_decoy_user" autocomplete="username" tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;" />
+              <div class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-[#8d887c]">Смена пароля</div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <input id="setOldPass" type="${secretInputType}" name="hg_old_pass" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Текущий пароль" class="${secretInputClass} px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-[#262421] border border-slate-200 dark:border-[#36322e] text-sm focus:outline-none" />
+                <input id="setNewPass" type="${secretInputType}" name="hg_new_pass" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Новый пароль (от 4 симв.)" class="${secretInputClass} px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-[#262421] border border-slate-200 dark:border-[#36322e] text-sm focus:outline-none" />
+              </div>
+              <button type="submit" class="px-4 py-2 rounded-xl border border-slate-300 dark:border-[#36322e] hover:bg-slate-100 dark:hover:bg-[#2a2724] text-xs font-semibold transition">Обновить пароль</button>
+            </form>
           </div>
         `;
         return;
@@ -4261,6 +4110,21 @@
     };
 
 
+    window.changeUserPassword = async function() {
+      const u = getCurrentUser();
+      const oldP = document.getElementById('setOldPass').value;
+      const newP = document.getElementById('setNewPass').value;
+      let ok = false;
+      if (u.passHash) ok = (await hashPassword(oldP, u.salt || '')) === u.passHash;
+      else if (u.password) ok = u.password === oldP;
+      if (!ok) { showToast('Текущий пароль неверен', 'error'); return; }
+      if (newP.length < 4) { showToast('Новый пароль должен быть не короче 4 символов', 'error'); return; }
+      const salt = newSalt();
+      await dbUpdate('hg_users', currentUserId, { passHash: await hashPassword(newP, salt), salt, password: '' });
+      document.getElementById('setOldPass').value = '';
+      document.getElementById('setNewPass').value = '';
+      showToast('Пароль успешно изменён', 'success');
+    };
 
     window.testNotificationSound = function(kind) {
       const prevDnd = settings.dndMode;
@@ -4636,8 +4500,6 @@
     applySettings();
     probeStorage();
     prefillLastLogin();
-    setAuthMode('login');
-    setTimeout(() => { if (!currentUserId) hideSessionLoader(true); }, 12000);
     initBackend();
   </script>
 </body>
