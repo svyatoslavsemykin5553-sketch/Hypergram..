@@ -342,6 +342,11 @@
             </div>
           </div>
           <div class="flex items-center gap-1 flex-shrink-0">
+            <button id="btnCall" onclick="callActiveChat()" title="Голосовой звонок" class="hidden p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-[#2a2724] text-slate-500 dark:text-slate-300 transition">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
+              </svg>
+            </button>
             <button onclick="toggleChatSearch()" title="Поиск по сообщениям" class="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-[#2a2724] text-slate-500 dark:text-slate-300 transition">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
@@ -611,6 +616,21 @@
   </div>
 
   <!-- TOAST УВЕДОМЛЕНИЯ -->
+  <!-- Окно голосового звонка -->
+  <div id="callOverlay" class="hidden fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4">
+    <div class="w-full max-w-xs bg-white dark:bg-[#1a1917] border border-slate-300 dark:border-[#36322e] p-8 text-center space-y-5">
+      <div id="callAvatar"></div>
+      <div id="callName" class="font-display text-xl font-bold truncate"></div>
+      <div id="callStatus" class="text-sm text-slate-500 dark:text-[#8d887c]"></div>
+      <div class="flex justify-center gap-4 pt-2">
+        <button id="callBtnMute" onclick="toggleCallMute()" class="hidden w-14 h-14 rounded-full bg-slate-200 dark:bg-[#2a2724] text-xl">🎤</button>
+        <button id="callBtnAccept" onclick="acceptCall()" class="hidden w-14 h-14 rounded-full bg-emerald-500 text-white text-xl">📞</button>
+        <button onclick="endCall()" class="w-14 h-14 rounded-full bg-red-500 text-white text-xl">✕</button>
+      </div>
+    </div>
+  </div>
+  <audio id="callAudio" autoplay playsinline></audio>
+
   <div id="toastContainer" class="fixed top-4 right-4 z-[60] flex flex-col gap-2 pointer-events-none max-w-xs w-full"></div>
 
   <!-- =========================================================
@@ -618,7 +638,7 @@
   ========================================================== -->
   <script type="module">
     let initializeApp, getAuth, signInAnonymously, signInWithCustomToken;
-    let getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, collection, onSnapshot, query, orderBy, limit;
+    let getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, collection, onSnapshot, query, orderBy, limit, where;
     let fbStorage = null, storageModRef = null;
 
     const AVATAR_GRADIENTS = [
@@ -2260,7 +2280,7 @@
           ]);
           ({ initializeApp } = appMod);
           ({ getAuth, signInAnonymously, signInWithCustomToken } = authMod);
-          ({ getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, collection, onSnapshot, query, orderBy, limit } = fsMod);
+          ({ getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, collection, onSnapshot, query, orderBy, limit, where } = fsMod);
 
           const app = initializeApp(fbCfg);
           auth = getAuth(app);
@@ -2658,6 +2678,7 @@
 
       saveSession(uid, restored);
       hideSessionLoader(false);
+      startCallListeners(uid);
       if (usersMap[uid]) {
         const loginPatch = { isOnline: !document.hidden, lastSeenAt: Date.now() };
         if (!restored) loginPatch.lastLoginAt = Date.now();
@@ -2687,7 +2708,240 @@
       }
     }
 
+    // =========================================================
+    // ГОЛОСОВЫЕ ЗВОНКИ 1 НА 1 (WebRTC, сигналинг через Firestore)
+    // =========================================================
+    // Для надёжной связи в мобильных сетях добавьте TURN-сервер:
+    // { urls: 'turn:host:3478', username: '...', credential: '...' }
+    const ICE_SERVERS = [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' }
+    ];
+    const CALL_STALE_MS = 90000;
+    const CALL_RING_MS = 60000;
+    let call = null;
+    let callUnsubs = [];
+    let ringTimer = null;
+    const iceBuffer = {};
+
+    function callCol(name) { return collection(db, 'artifacts', appId, 'public', 'data', name); }
+
+    function ringBeep() {
+      if (settings.dndMode) return;
+      try {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return;
+        if (!audioCtx) audioCtx = new Ctx();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain(), t = audioCtx.currentTime;
+        o.frequency.value = 440;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.15, t + 0.05);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
+        o.connect(g); g.connect(audioCtx.destination);
+        o.start(t); o.stop(t + 0.65);
+      } catch (e) {}
+    }
+    function startRing() { stopRing(); ringBeep(); ringTimer = setInterval(ringBeep, 1800); }
+    function stopRing() { if (ringTimer) { clearInterval(ringTimer); ringTimer = null; } }
+
+    function setCallUi(state) {
+      const status = { calling: 'Вызов…', incoming: 'Входящий звонок', connecting: 'Соединение…', active: '00:00' }[state];
+      document.getElementById('callStatus').textContent = status;
+      document.getElementById('callBtnAccept').classList.toggle('hidden', state !== 'incoming');
+      document.getElementById('callBtnMute').classList.toggle('hidden', !(state === 'connecting' || state === 'active'));
+    }
+    function showCallOverlay(peerId, state) {
+      const peer = usersMap[peerId] || { displayName: 'Пользователь', initials: '?', avatarColor: 'from-slate-500 to-slate-600' };
+      applyAvatarEl(document.getElementById('callAvatar'), peer, 'w-24 h-24 rounded-3xl mx-auto flex items-center justify-center text-3xl font-bold text-white');
+      document.getElementById('callName').textContent = peer.displayName;
+      document.getElementById('callBtnMute').textContent = '🎤';
+      setCallUi(state);
+      document.getElementById('callOverlay').classList.remove('hidden');
+    }
+
+    function createPc() {
+      const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+      pc.onicecandidate = (e) => {
+        if (!e.candidate || !call) return;
+        const id = `${call.id}_${currentUserId}_${call.iceN++}`;
+        call.iceIds.push(id);
+        dbSet('hg_call_ice', id, { callId: call.id, from: currentUserId, to: call.peerId, candidate: JSON.stringify(e.candidate), ts: Date.now() }).catch(() => {});
+      };
+      pc.ontrack = (e) => {
+        const a = document.getElementById('callAudio');
+        a.srcObject = e.streams[0];
+        a.play().catch(() => {});
+      };
+      pc.onconnectionstatechange = () => {
+        if (!call) return;
+        if (pc.connectionState === 'connected' && !call.connectedAt) {
+          stopRing();
+          clearTimeout(call.ringTimeout);
+          call.connectedAt = Date.now();
+          setCallUi('active');
+          call.timer = setInterval(() => {
+            const s = Math.floor((Date.now() - call.connectedAt) / 1000);
+            document.getElementById('callStatus').textContent = String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+          }, 1000);
+        } else if (pc.connectionState === 'failed') {
+          endCall('Соединение потеряно');
+        }
+      };
+      return pc;
+    }
+
+    function flushIce() {
+      if (!call || !call.pc || !call.pc.remoteDescription) return;
+      const buf = iceBuffer[call.id] || [];
+      iceBuffer[call.id] = [];
+      buf.forEach(c => call.pc.addIceCandidate(c).catch(() => {}));
+    }
+
+    function finishCall(msg) {
+      const c = call;
+      call = null;
+      stopRing();
+      document.getElementById('callOverlay').classList.add('hidden');
+      document.getElementById('callAudio').srcObject = null;
+      if (!c) return;
+      clearTimeout(c.ringTimeout); clearTimeout(c.incomingTimeout); clearInterval(c.timer);
+      try { c.pc && c.pc.close(); } catch (e) {}
+      try { c.stream && c.stream.getTracks().forEach(t => t.stop()); } catch (e) {}
+      (c.iceIds || []).forEach(i => dbDelete('hg_call_ice', i).catch(() => {}));
+      if (c.role === 'caller') setTimeout(() => dbDelete('hg_calls', c.id).catch(() => {}), 5000);
+      if (msg) showToast(msg);
+    }
+
+    window.endCall = function(msg) {
+      if (!call) return;
+      const c = call;
+      const status = (c.role === 'callee' && !c.connectedAt) ? 'declined' : 'ended';
+      dbUpdate('hg_calls', c.id, { status }).catch(() => {});
+      finishCall(typeof msg === 'string' ? msg : '');
+    };
+
+    window.toggleCallMute = function() {
+      if (!call || !call.stream) return;
+      const tracks = call.stream.getAudioTracks();
+      const on = !(tracks[0] && tracks[0].enabled);
+      tracks.forEach(t => { t.enabled = on; });
+      document.getElementById('callBtnMute').textContent = on ? '🎤' : '🔇';
+    };
+
+    window.startCall = async function(peerId) {
+      if (call) return showToast('Вы уже в звонке', 'error');
+      if (!useCloud || !db) return showToast('Звонки работают только при подключении к облаку', 'error');
+      if (!window.isSecureContext || !(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) return showToast('Для звонков нужен https-адрес и доступ к микрофону', 'error');
+      if (settings.blockedUsers.includes(peerId)) return showToast('Пользователь в чёрном списке', 'error');
+      if (!usersMap[peerId]) return;
+      const id = 'call_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+      const c = call = { id, role: 'caller', peerId, iceN: 0, iceIds: [], pc: null, stream: null };
+      showCallOverlay(peerId, 'calling');
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        if (call !== c) { stream.getTracks().forEach(t => t.stop()); return; }
+        c.stream = stream;
+        c.pc = createPc();
+        stream.getTracks().forEach(t => c.pc.addTrack(t, stream));
+        await c.pc.setLocalDescription(await c.pc.createOffer());
+        await dbSet('hg_calls', id, { id, from: currentUserId, to: peerId, chatId: activeChatId, status: 'ringing', offer: JSON.stringify(c.pc.localDescription), createdAt: Date.now() });
+        if (call !== c) return;
+        startRing();
+        c.ringTimeout = setTimeout(() => {
+          if (call === c && !c.connectedAt) { dbUpdate('hg_calls', id, { status: 'missed' }).catch(() => {}); finishCall('Нет ответа'); }
+        }, CALL_RING_MS);
+      } catch (e) {
+        console.warn('startCall:', e);
+        if (call === c) finishCall(e && e.name === 'NotAllowedError' ? 'Нет доступа к микрофону' : 'Не удалось начать звонок');
+      }
+    };
+
+    window.callActiveChat = function() {
+      const chat = chatsMap[activeChatId];
+      const peerId = chat && chat.type === 'dm' ? (chat.participants || []).find(id => id !== currentUserId) : null;
+      if (!peerId) return showToast('Звонить можно только в личном чате', 'error');
+      startCall(peerId);
+    };
+
+    window.acceptCall = async function() {
+      const c = call;
+      if (!c || c.role !== 'callee' || c.pc) return;
+      stopRing();
+      clearTimeout(c.incomingTimeout);
+      setCallUi('connecting');
+      try {
+        c.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        if (call !== c) { c.stream.getTracks().forEach(t => t.stop()); return; }
+        c.pc = createPc();
+        c.stream.getTracks().forEach(t => c.pc.addTrack(t, c.stream));
+        await c.pc.setRemoteDescription(JSON.parse(c.offer));
+        flushIce();
+        await c.pc.setLocalDescription(await c.pc.createAnswer());
+        await dbUpdate('hg_calls', c.id, { status: 'active', answer: JSON.stringify(c.pc.localDescription) });
+      } catch (e) {
+        console.warn('acceptCall:', e);
+        dbUpdate('hg_calls', c.id, { status: 'declined' }).catch(() => {});
+        if (call === c) finishCall(e && e.name === 'NotAllowedError' ? 'Нет доступа к микрофону' : 'Не удалось принять звонок');
+      }
+    };
+
+    const CALL_END_TEXT = { ended: 'Звонок завершён', declined: 'Звонок отклонён', missed: 'Пропущенный звонок', busy: 'Абонент занят' };
+    async function onCallDoc(d) {
+      const fresh = Date.now() - (d.createdAt || 0) < CALL_STALE_MS;
+      if (!call) {
+        if (d.to !== currentUserId || d.status !== 'ringing' || !fresh) return;
+        if (settings.blockedUsers.includes(d.from)) return;
+        const c = call = { id: d.id, role: 'callee', peerId: d.from, offer: d.offer, iceN: 0, iceIds: [], pc: null, stream: null };
+        showCallOverlay(d.from, 'incoming');
+        startRing();
+        if (navigator.vibrate) { try { navigator.vibrate([300, 200, 300]); } catch (e) {} }
+        c.incomingTimeout = setTimeout(() => { if (call === c && !c.pc) finishCall(); }, CALL_RING_MS);
+        return;
+      }
+      if (d.id !== call.id) {
+        if (d.to === currentUserId && d.status === 'ringing' && fresh) dbUpdate('hg_calls', d.id, { status: 'busy' }).catch(() => {});
+        return;
+      }
+      if (call.role === 'caller' && d.answer && !call.remoteSet) {
+        call.remoteSet = true;
+        try {
+          await call.pc.setRemoteDescription(JSON.parse(d.answer));
+          flushIce();
+          setCallUi('connecting');
+        } catch (e) { console.warn(e); }
+      }
+      if (CALL_END_TEXT[d.status]) finishCall(CALL_END_TEXT[d.status]);
+    }
+
+    function stopCallListeners() {
+      callUnsubs.forEach(u => { try { u(); } catch (e) {} });
+      callUnsubs = [];
+    }
+    function startCallListeners(uid) {
+      stopCallListeners();
+      if (!useCloud || !db) return;
+      const handle = (snap) => snap.docChanges().forEach(ch => { if (ch.type !== 'removed') onCallDoc(ch.doc.data()); });
+      const onErr = (e) => console.warn('Звонки недоступны (проверьте правила Firestore):', e.code || e);
+      callUnsubs.push(onSnapshot(query(callCol('hg_calls'), where('to', '==', uid)), handle, onErr));
+      callUnsubs.push(onSnapshot(query(callCol('hg_calls'), where('from', '==', uid)), handle, onErr));
+      callUnsubs.push(onSnapshot(query(callCol('hg_call_ice'), where('to', '==', uid)), (snap) => {
+        snap.docChanges().forEach(ch => {
+          if (ch.type !== 'added') return;
+          const d = ch.doc.data();
+          if (Date.now() - (d.ts || 0) > 300000) return;
+          try { (iceBuffer[d.callId] = iceBuffer[d.callId] || []).push(JSON.parse(d.candidate)); } catch (e) { return; }
+          if (call && call.id === d.callId) flushIce();
+        });
+      }, onErr));
+    }
+    window.addEventListener('pagehide', () => {
+      if (call) { try { dbUpdate('hg_calls', call.id, { status: 'ended' }); } catch (e) {} }
+    });
+
     window.logout = function() {
+      if (call) endCall();
+      stopCallListeners();
       notifyTyping(false);
       resetReadCursorsCache();
       const uid = currentUserId;
@@ -3088,6 +3342,8 @@
       applyAvatarEl(document.getElementById('chatHeaderAvatar'), meta, 'w-10 h-10 rounded-xl flex items-center justify-center font-bold text-white text-sm flex-shrink-0');
       document.getElementById('chatHeaderTitle').innerHTML = `<span class="truncate">${escapeHtml(meta.title)}</span>${renderBadges(meta.badges, false)}`;
       updateActiveChatHeaderStatus();
+      const callBtn = document.getElementById('btnCall');
+      if (callBtn) callBtn.classList.toggle('hidden', !(chat.type === 'dm' && (chat.participants || []).some(id => id !== currentUserId)));
 
       const perm = canWriteToChat(chat);
       const joinBarEl = document.getElementById('composerJoinBar');
