@@ -786,6 +786,8 @@
     const ADMIN_HASH = '807bf9b0444fba2506169bbd8185aab79066bd33275218725fbc2d7f78557c61';
     const DANYA_SALT = 'hypergram-admin-danya';
     const DANYA_HASH = 'd4df6168b8dee3a73198cc42318df2aed1c2f44fb1ab7af5d177962578d19b69';
+    // Почты админов (хранится только хеш): к этим аккаунтам вход по ссылке из письма
+    const ADMIN_EMAIL_HASHES = { danya: '03261db1f756c68aa08350eaf6e4a64ee6c663f1ac595173a870cdfdc0138ce7' };
     const HASH_ROUNDS = 5000;
     const MESSAGES_LIMIT = 300;
     const textEnc = new TextEncoder();
@@ -2172,6 +2174,19 @@
       return true;
     }
 
+    async function bindAdminEmails() {
+      for (const [uid, h] of Object.entries(ADMIN_EMAIL_HASHES)) {
+        try {
+          let cur = null;
+          if (useCloud && db) {
+            const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'hg_users', uid));
+            cur = snap.exists() ? snap.data() : null;
+          } else cur = usersMap[uid] || null;
+          if (cur && !cur.emailHash) await dbUpdate('hg_users', uid, { emailHash: h });
+        } catch (e) { console.warn('bindAdminEmails:', e); }
+      }
+    }
+
     let seedPromise = null;
     function ensureSeedData() {
       if (!seedPromise) seedPromise = runSeed().catch(e => { console.warn('Seed error:', e); seedPromise = null; });
@@ -2248,6 +2263,7 @@
           readBy: ['hypergram']
         });
       }
+      await bindAdminEmails();
     }
 
     let connectError = null;
