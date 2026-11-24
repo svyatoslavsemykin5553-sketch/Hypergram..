@@ -241,6 +241,20 @@
   <!-- =========================================================
        ОСНОВНОЙ ИНТЕРФЕЙС МЕССЕНДЖЕРА
   ========================================================== -->
+  <!-- Заставка: пока восстанавливается сохранённая сессия, форму входа не показываем -->
+  <div id="sessionLoader" class="hidden fixed inset-0 z-[55] flex items-center justify-center bg-[#121110]">
+    <div class="font-display text-4xl font-extrabold text-white">hypergram<span class="hg-accent-text">.</span></div>
+  </div>
+  <script>
+    try {
+      var s = JSON.parse(localStorage.getItem('hypergram_session_v1') || 'null');
+      if (s && s.userId) {
+        document.getElementById('sessionLoader').classList.remove('hidden');
+        document.getElementById('authScreen').classList.add('hidden');
+      }
+    } catch (e) {}
+  </script>
+
   <div id="app" class="hidden h-screen w-screen flex overflow-hidden relative bg-slate-100 dark:bg-[#121110] text-slate-900 dark:text-slate-100 transition-colors duration-200">
 
     <!-- ЛЕВАЯ ПАНЕЛЬ: Список чатов -->
@@ -2021,11 +2035,25 @@
       return doc(db, 'artifacts', appId, 'public', 'data', 'hg_sessions', cloudUid);
     }
 
-    function saveSession(uid) {
-      const data = { userId: uid, loginAt: Date.now() };
+    function hideSessionLoader(showAuth) {
+      const l = document.getElementById('sessionLoader');
+      if (l) l.classList.add('hidden');
+      if (showAuth && !currentUserId) document.getElementById('authScreen').classList.remove('hidden');
+    }
+
+    // Сессия живёт, пока вы сами не нажмёте «Выйти» (как в Telegram)
+    function saveSession(uid, restored = false) {
+      const prev = readJson(SESSION_KEY, null);
+      const data = {
+        userId: uid,
+        loginAt: (prev && prev.userId === uid && prev.loginAt) || Date.now(),
+        lastSeen: Date.now()
+      };
       writeJson(SESSION_KEY, data);
       store.set(LAST_LOGIN_KEY, uid);
       if (useCloud && db && cloudUid) {
+        const sameInCloud = cloudSession && cloudSession.userId === uid;
+        if (restored && sameInCloud) return;
         cloudSession = data;
         setDoc(sessionDocRef(), data).catch(e => console.warn('Не удалось сохранить сессию в облаке:', e));
       }
@@ -2055,14 +2083,15 @@
 
     function tryRestoreSession(authoritative = true) {
       if (sessionRestoreDone || currentUserId) return;
-      const session = cloudSession || readJson(SESSION_KEY, null);
-      if (!session || !session.userId) { sessionRestoreDone = true; return; }
+      const session = readJson(SESSION_KEY, null) || cloudSession;
+      if (!session || !session.userId) { sessionRestoreDone = true; hideSessionLoader(true); return; }
       if (usersMap[session.userId]) {
         sessionRestoreDone = true;
         loginSuccess(session.userId, true);
       } else if (authoritative && Object.keys(usersMap).length > 0) {
         sessionRestoreDone = true;
         clearSession();
+        hideSessionLoader(true);
       }
     }
 
@@ -2739,7 +2768,8 @@
       document.getElementById('authForm').reset();
       activeChatId = getLastChat(uid);
 
-      saveSession(uid);
+      saveSession(uid, restored);
+      hideSessionLoader(false);
       if (usersMap[uid]) {
         const loginPatch = { isOnline: !document.hidden, lastSeenAt: Date.now() };
         if (!restored) loginPatch.lastLoginAt = Date.now();
@@ -4588,6 +4618,7 @@
     probeStorage();
     prefillLastLogin();
     setAuthMode('login');
+    setTimeout(() => { if (!currentUserId) hideSessionLoader(true); }, 12000);
     initBackend();
   </script>
 </body>
