@@ -176,43 +176,44 @@
   </div>
 
   <!-- =========================================================
-       ЭКРАН ВХОДА И РЕГИСТРАЦИИ (AUTH SCREEN)
+       ЭКРАН ВХОДА И РЕГИСТРАЦИИ (TELEGRAM-STYLE WITHOUT PASSWORD)
   ========================================================== -->
   <div id="authScreen" class="fixed inset-0 z-50 flex items-center justify-center p-4 chat-wallpaper-dark wp-lines">
-    <div class="w-full max-w-sm bg-white dark:bg-[#1a1917] border border-slate-300 dark:border-[#36322e] p-7 sm:p-9 space-y-7 msg-animate">
+    <div class="w-full max-w-sm bg-white dark:bg-[#1a1917] border border-slate-300 dark:border-[#36322e] p-7 sm:p-9 space-y-6 msg-animate">
       <!-- Логотип -->
       <div class="space-y-1.5">
         <div class="font-display text-4xl font-extrabold leading-none">hypergram<span class="hg-accent-text">.</span></div>
-        <p class="text-[11px] uppercase tracking-[0.14em] text-slate-500 dark:text-[#8d887c]">мессенджер в реальном времени</p>
+        <p class="text-[11px] uppercase tracking-[0.14em] text-slate-500 dark:text-[#8d887c]">вход по почте, телефону или @нику</p>
       </div>
 
-      <!-- Вкладки Вход / Регистрация -->
+      <!-- Переключатель способа входа -->
       <div class="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-slate-100 dark:bg-[#121110]">
-        <button id="tabLogin" onclick="setAuthMode('login')" class="py-2 rounded-xl text-sm font-semibold hg-accent-bg text-white transition">Вход</button>
-        <button id="tabRegister" onclick="setAuthMode('register')" class="py-2 rounded-xl text-sm font-semibold text-slate-500 dark:text-[#8d887c] hover:text-slate-900 dark:hover:text-white transition">Регистрация</button>
+        <button id="authChannelPhone" type="button" onclick="setAuthChannel('phone')" class="py-2 rounded-xl text-xs font-semibold hg-accent-bg text-white transition">Телефон</button>
+        <button id="authChannelEmail" type="button" onclick="setAuthChannel('email')" class="py-2 rounded-xl text-xs font-semibold text-slate-500 dark:text-[#8d887c] hover:text-slate-900 dark:hover:text-white transition">Почта</button>
       </div>
 
-      <!-- Форма -->
+      <!-- Форма без пароля -->
       <form id="authForm" onsubmit="handleAuthSubmit(event)" class="space-y-4">
-        <div id="registerNameField" class="hidden">
-          <label class="block text-xs font-semibold text-slate-500 dark:text-[#8d887c] mb-1.5">Отображаемое имя</label>
-          <input id="authDisplayName" type="text" placeholder="Например: Алексей" class="w-full px-4 py-3 rounded-xl bg-slate-100 dark:bg-[#262421] text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/60 transition" />
+        <div id="authContactGroup">
+          <label id="authContactLabel" class="block text-xs font-semibold text-slate-500 dark:text-[#8d887c] mb-1.5">Номер телефона</label>
+          <input id="authContact" type="tel" required placeholder="+7 999 123-45-67" autocomplete="tel" class="w-full px-4 py-3 rounded-xl bg-slate-100 dark:bg-[#262421] text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/60 transition" />
         </div>
 
-        <div>
-          <label class="block text-xs font-semibold text-slate-500 dark:text-[#8d887c] mb-1.5">Логин (никнейм)</label>
-          <input id="authUsername" type="text" required placeholder="@username" autocomplete="username" class="w-full px-4 py-3 rounded-xl bg-slate-100 dark:bg-[#262421] text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/60 transition" />
-        </div>
-
-        <div>
-          <label class="block text-xs font-semibold text-slate-500 dark:text-[#8d887c] mb-1.5">Пароль</label>
-          <input id="authPassword" type="password" required placeholder="Введите пароль" autocomplete="current-password" class="w-full px-4 py-3 rounded-xl bg-slate-100 dark:bg-[#262421] text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/60 transition" />
+        <div id="authRegisterExtra" class="hidden space-y-4">
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 dark:text-[#8d887c] mb-1.5">Ваше имя</label>
+            <input id="authDisplayName" type="text" placeholder="Например: Алексей" class="w-full px-4 py-3 rounded-xl bg-slate-100 dark:bg-[#262421] text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/60 transition" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 dark:text-[#8d887c] mb-1.5">Никнейм (@username)</label>
+            <input id="authUsername" type="text" placeholder="@username" autocomplete="username" class="w-full px-4 py-3 rounded-xl bg-slate-100 dark:bg-[#262421] text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/60 transition" />
+          </div>
         </div>
 
         <div id="authError" class="hidden p-3 rounded-xl bg-red-500/15 border border-red-500/30 text-red-400 text-xs font-medium text-center"></div>
 
         <button id="authSubmitBtn" type="submit" class="w-full py-3 rounded-xl hg-accent-bg text-white font-semibold text-sm tracking-wide transition active:translate-y-px">
-          Войти в HYPERGRAM
+          Продолжить
         </button>
       </form>
 
@@ -2007,9 +2008,21 @@
     }
 
     function saveSession(uid) {
-      const data = { userId: uid, loginAt: Date.now() };
+      const u = usersMap[uid] || {};
+      const data = {
+        userId: uid,
+        username: u.username || ('@' + uid),
+        displayName: u.displayName || uid,
+        phone: u.phone || '',
+        email: u.email || '',
+        initials: u.initials || uid.slice(0, 2).toUpperCase(),
+        avatarColor: u.avatarColor || 'from-sky-500 to-indigo-600',
+        avatarUrl: u.avatarUrl || '',
+        loginAt: Date.now()
+      };
       writeJson(SESSION_KEY, data);
-      store.set(LAST_LOGIN_KEY, uid);
+      const lastContact = u.phone || u.email || u.username || uid;
+      store.set(LAST_LOGIN_KEY, lastContact);
       if (useCloud && db && cloudUid) {
         cloudSession = data;
         setDoc(sessionDocRef(), data).catch(e => console.warn('Не удалось сохранить сессию в облаке:', e));
@@ -2032,19 +2045,98 @@
       const id = readJson(LAST_CHAT_KEY, {})[uid];
       return id && chatsMap[id] ? id : 'global_chat';
     }
-    function prefillLastLogin() {
-      const last = store.get(LAST_LOGIN_KEY);
-      if (last) document.getElementById('authUsername').value = last;
+    let authChannel = 'phone'; // 'phone' | 'email'
+    let pendingNewContact = null; // { kind, normalized, raw }
+
+    function normalizeEmail(raw) {
+      return String(raw || '').trim().toLowerCase();
     }
 
-    function tryRestoreSession(authoritative = true) {
-      if (sessionRestoreDone || currentUserId) return;
+    function normalizePhone(raw) {
+      const digits = String(raw || '').replace(/\D/g, '');
+      if (digits.length === 11 && digits.startsWith('8')) return '+7' + digits.slice(1);
+      if (digits.length === 10) return '+7' + digits;
+      return digits ? '+' + digits : '';
+    }
+
+    function parseContactInput(raw) {
+      const val = String(raw || '').trim();
+      if (!val) return null;
+      if (val.includes('@') && !val.startsWith('@')) {
+        const email = normalizeEmail(val);
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return null;
+        return { kind: 'email', normalized: email, raw: val };
+      }
+      const phone = normalizePhone(val);
+      if (phone.replace(/\D/g, '').length < 7) return null;
+      return { kind: 'phone', normalized: phone, raw: val };
+    }
+
+    function findUserByContact(contact) {
+      if (!contact) return null;
+      return Object.values(usersMap).find(u => {
+        if (!u) return false;
+        if (contact.kind === 'email' && u.email && normalizeEmail(u.email) === contact.normalized) return true;
+        if (contact.kind === 'phone' && u.phone && normalizePhone(u.phone) === contact.normalized) return true;
+        return false;
+      }) || null;
+    }
+
+    function prefillLastLogin() {
+      const last = store.get(LAST_LOGIN_KEY);
+      if (!last) return;
+      const contactEl = document.getElementById('authContact');
+      if (contactEl && !contactEl.value) contactEl.value = last;
+    }
+
+    function restoreLocalSessionImmediate() {
+      if (currentUserId) return false;
+      const session = readJson(SESSION_KEY, null);
+      if (!session || !session.userId) return false;
+      // Мгновенный вход как в Telegram: не ждём перепроверок при каждом снапшоте
+      if (!usersMap[session.userId]) {
+        usersMap[session.userId] = {
+          id: session.userId,
+          username: session.username || ('@' + session.userId),
+          displayName: session.displayName || session.userId,
+          phone: session.phone || '',
+          email: session.email || '',
+          role: ADMIN_IDS.includes(session.userId) ? 'admin' : 'user',
+          avatarColor: session.avatarColor || 'from-sky-500 to-indigo-600',
+          initials: session.initials || (session.displayName || session.userId).slice(0, 2).toUpperCase(),
+          avatarUrl: session.avatarUrl || '',
+          bio: '',
+          status: 'online',
+          badges: ADMIN_IDS.includes(session.userId) ? { verified: true, premium: true, staff: true, scam: false } : { verified: false, premium: false, staff: false, scam: false },
+          customTitle: '',
+          banned: false,
+          createdAt: Date.now()
+        };
+      }
+      sessionRestoreDone = true;
+      loginSuccess(session.userId, true);
+      return true;
+    }
+
+    function tryRestoreSession(authoritative = false) {
+      if (currentUserId) {
+        // Если аккаунт уже загрузился из облака/локального кэша — обновим профиль в сессии один раз
+        if (usersMap[currentUserId]) saveSession(currentUserId);
+        return;
+      }
+      if (sessionRestoreDone) return;
       const session = cloudSession || readJson(SESSION_KEY, null);
-      if (!session || !session.userId) { sessionRestoreDone = true; return; }
+      if (!session || !session.userId) {
+        sessionRestoreDone = true;
+        return;
+      }
       if (usersMap[session.userId]) {
         sessionRestoreDone = true;
         loginSuccess(session.userId, true);
-      } else if (authoritative && Object.keys(usersMap).length > 0) {
+      } else if (!authoritative) {
+        sessionRestoreDone = true;
+        loginSuccess(session.userId, true);
+      } else if (Object.keys(usersMap).length > 0) {
         sessionRestoreDone = true;
         clearSession();
       }
@@ -2266,7 +2358,7 @@
             usersMap = next;
             syncPresenceSeen(next);
             syncTypingSeen(next);
-            tryRestoreSession(!snap.metadata.fromCache);
+            if (!currentUserId) tryRestoreSession(!snap.metadata.fromCache);
             renderIfLoggedIn();
           }, (err) => reportSyncError('Users', err));
 
@@ -2525,18 +2617,31 @@
     // =========================================================
     // АВТОРИЗАЦИЯ И РЕГИСТРАЦИЯ
     // =========================================================
-    window.setAuthMode = function(mode) {
-      authMode = mode;
+    window.setAuthChannel = function(channel) {
+      authChannel = channel;
+      pendingNewContact = null;
       document.getElementById('authError').classList.add('hidden');
-      const isReg = mode === 'register';
-      document.getElementById('registerNameField').classList.toggle('hidden', !isReg);
-      document.getElementById('authSubmitBtn').textContent = isReg ? 'Создать аккаунт' : 'Войти в HYPERGRAM';
-      document.getElementById('tabLogin').className = !isReg
-        ? 'py-2 rounded-xl text-sm font-semibold hg-accent-bg text-white transition'
-        : 'py-2 rounded-xl text-sm font-semibold text-slate-500 dark:text-[#8d887c] transition';
-      document.getElementById('tabRegister').className = isReg
-        ? 'py-2 rounded-xl text-sm font-semibold hg-accent-bg text-white transition'
-        : 'py-2 rounded-xl text-sm font-semibold text-slate-500 dark:text-[#8d887c] transition';
+      document.getElementById('authRegisterExtra').classList.add('hidden');
+      document.getElementById('authSubmitBtn').textContent = 'Продолжить';
+
+      const lbl = document.getElementById('authContactLabel');
+      const inp = document.getElementById('authContact');
+      if (channel === 'email') {
+        lbl.textContent = 'Электронная почта';
+        inp.type = 'email';
+        inp.placeholder = 'name@example.com';
+        inp.autocomplete = 'email';
+      } else {
+        lbl.textContent = 'Номер телефона';
+        inp.type = 'tel';
+        inp.placeholder = '+7 999 123-45-67';
+        inp.autocomplete = 'tel';
+      }
+
+      const activeCls = 'py-2 rounded-xl text-xs font-semibold hg-accent-bg text-white transition';
+      const idleCls = 'py-2 rounded-xl text-xs font-semibold text-slate-500 dark:text-[#8d887c] hover:text-slate-900 dark:hover:text-white transition';
+      document.getElementById('authChannelPhone').className = channel === 'phone' ? activeCls : idleCls;
+      document.getElementById('authChannelEmail').className = channel === 'email' ? activeCls : idleCls;
     };
 
     window.handleAuthSubmit = async function(e) {
@@ -2544,78 +2649,98 @@
       const errEl = document.getElementById('authError');
       errEl.classList.add('hidden');
 
-      const rawUser = document.getElementById('authUsername').value.trim();
-      const password = document.getElementById('authPassword').value.trim();
-      const displayName = document.getElementById('authDisplayName').value.trim();
-      const uid = normalizeId(rawUser);
+      const contactInp = document.getElementById('authContact');
+      const rawContact = (contactInp.value || '').trim();
+      const contact = parseContactInput(rawContact);
 
-      if (!uid || uid.length < 2) {
-        errEl.textContent = 'Логин должен содержать минимум 2 символа.';
+      if (!contact) {
+        errEl.textContent = authChannel === 'email'
+          ? 'Введите корректный адрес электронной почты.'
+          : 'Введите корректный номер телефона.';
         errEl.classList.remove('hidden');
         return;
       }
 
-      if (authMode === 'login') {
-        const user = usersMap[uid];
-        let okPass = false;
-        if (user && user.passHash) {
-          okPass = (await hashPassword(password, user.salt || '')) === user.passHash;
-        } else if (user && user.password) {
-          okPass = user.password === password;
-          if (okPass) {
-            const salt = newSalt();
-            dbUpdate('hg_users', uid, { passHash: await hashPassword(password, salt), salt, password: '' }).catch(() => {});
-          }
-        }
-        if (!okPass) {
-          errEl.textContent = 'Неверный логин или пароль.';
-          errEl.classList.remove('hidden');
-          return;
-        }
-        loginSuccess(uid);
-      } else {
-        if (!displayName) {
-          errEl.textContent = 'Введите отображаемое имя.';
-          errEl.classList.remove('hidden');
-          return;
-        }
-        if (password.length < 4) {
-          errEl.textContent = 'Пароль должен быть не короче 4 символов.';
-          errEl.classList.remove('hidden');
-          return;
-        }
-        let taken = !!usersMap[uid];
-        try { if (!taken) taken = await docExists('hg_users', uid); } catch (err) { console.warn(err); }
-        if (taken) {
-          errEl.textContent = 'Этот логин уже занят.';
-          errEl.classList.remove('hidden');
-          return;
-        }
-        const salt = newSalt();
-        const passHash = await hashPassword(password, salt);
-
-        const initials = displayName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || 'HG';
-        const color = AVATAR_GRADIENTS[Math.floor(Math.random() * AVATAR_GRADIENTS.length)];
-
-        await dbSet('hg_users', uid, {
-          id: uid,
-          username: '@' + uid,
-          displayName: displayName,
-          passHash: passHash,
-          salt: salt,
-          role: 'user',
-          avatarColor: color,
-          initials: initials,
-          avatarUrl: '',
-          bio: '',
-          status: 'online',
-          badges: { verified: false, premium: false, staff: false, scam: false },
-          customTitle: '',
-          banned: false,
-          createdAt: Date.now()
-        });
-        loginSuccess(uid);
+      const existing = findUserByContact(contact);
+      if (existing) {
+        pendingNewContact = null;
+        loginSuccess(existing.id);
+        return;
       }
+
+      // Новый контакт: первый шаг открывает ввод имени и @ника (без пароля и дублей)
+      const extraEl = document.getElementById('authRegisterExtra');
+      const isStep2 = !extraEl.classList.contains('hidden') &&
+        pendingNewContact &&
+        pendingNewContact.kind === contact.kind &&
+        pendingNewContact.normalized === contact.normalized;
+
+      if (!isStep2) {
+        pendingNewContact = contact;
+        extraEl.classList.remove('hidden');
+        document.getElementById('authSubmitBtn').textContent = 'Создать аккаунт';
+        const nameInp = document.getElementById('authDisplayName');
+        const userInp = document.getElementById('authUsername');
+        if (!userInp.value.trim()) {
+          const base = contact.kind === 'email'
+            ? contact.normalized.split('@')[0]
+            : ('u_' + contact.normalized.replace(/\D/g, '').slice(-6));
+          const cleanBase = normalizeId(base) || 'user';
+          userInp.value = '@' + cleanBase;
+        }
+        nameInp.focus();
+        return;
+      }
+
+      const displayName = (document.getElementById('authDisplayName').value || '').trim();
+      const rawHandle = (document.getElementById('authUsername').value || '').trim();
+      let uid = normalizeId(rawHandle);
+      if (!uid || uid.length < 2) {
+        uid = 'user_' + contact.normalized.replace(/\D/g, '').slice(-6);
+      }
+
+      if (!displayName) {
+        errEl.textContent = 'Введите ваше имя.';
+        errEl.classList.remove('hidden');
+        return;
+      }
+
+      // Если такой @ник уже занят другим контактом, добавим короткий суффикс вместо ошибки создания миллиона аккаунтов
+      let taken = !!usersMap[uid];
+      try { if (!taken) taken = await docExists('hg_users', uid); } catch (err) { console.warn(err); }
+      if (taken && usersMap[uid]) {
+        const samePhone = contact.kind === 'phone' && usersMap[uid].phone === contact.normalized;
+        const sameEmail = contact.kind === 'email' && usersMap[uid].email === contact.normalized;
+        if (samePhone || sameEmail) {
+          loginSuccess(uid);
+          return;
+        }
+        const suffix = contact.normalized.replace(/\D/g, '').slice(-4) || Math.random().toString(36).slice(2, 5);
+        uid = `${uid.slice(0, 16)}_${suffix}`;
+      }
+
+      const initials = displayName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || 'HG';
+      const color = AVATAR_GRADIENTS[Math.floor(Math.random() * AVATAR_GRADIENTS.length)];
+
+      await dbSet('hg_users', uid, {
+        id: uid,
+        username: '@' + uid,
+        displayName: displayName,
+        phone: contact.kind === 'phone' ? contact.normalized : '',
+        email: contact.kind === 'email' ? contact.normalized : '',
+        role: 'user',
+        avatarColor: color,
+        initials: initials,
+        avatarUrl: '',
+        bio: '',
+        status: 'online',
+        badges: { verified: false, premium: false, staff: false, scam: false },
+        customTitle: '',
+        banned: false,
+        createdAt: Date.now()
+      });
+      pendingNewContact = null;
+      loginSuccess(uid);
     };
 
     function loginSuccess(uid, restored = false) {
@@ -4499,7 +4624,8 @@
     // Запуск
     applySettings();
     probeStorage();
-    prefillLastLogin();
+    restoreLocalSessionImmediate();
+    if (!currentUserId) prefillLastLogin();
     initBackend();
   </script>
 </body>
