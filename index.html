@@ -230,6 +230,7 @@
         </button>
       </form>
 
+      <div id="firebaseRecaptchaContainer" class="hidden"></div>
       <div id="syncStatusBadge" class="text-center text-[11px] text-slate-400 dark:text-[#8d887c]">
         Подключение к серверу...
       </div>
@@ -617,7 +618,7 @@
        ЛОГИКА FIREBASE FIRESTORE + РЕЗЕРВНЫЙ РЕЖИМ + НАСТРОЙКИ
   ========================================================== -->
   <script type="module">
-    let initializeApp, getAuth, signInAnonymously, signInWithCustomToken;
+    let initializeApp, getAuth, signInAnonymously, signInWithCustomToken, signInWithPhoneNumber, RecaptchaVerifier;
     let getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, collection, onSnapshot, query, orderBy, limit;
     let fbStorage = null, storageModRef = null;
 
@@ -2335,7 +2336,7 @@
             import(FB + 'firebase-firestore.js')
           ]);
           ({ initializeApp } = appMod);
-          ({ getAuth, signInAnonymously, signInWithCustomToken } = authMod);
+          ({ getAuth, signInAnonymously, signInWithCustomToken, signInWithPhoneNumber, RecaptchaVerifier } = authMod);
           ({ getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, collection, onSnapshot, query, orderBy, limit } = fsMod);
 
           const app = initializeApp(fbCfg);
@@ -2630,7 +2631,8 @@
     // =========================================================
     // АВТОРИЗАЦИЯ И РЕГИСТРАЦИЯ
     // =========================================================
-    let otpSession = null; // { contact, existingUser, code, expiresAt, verified }
+    let otpSession = null; // { contact, existingUser, code, expiresAt, verified, confirmationResult, otpDocId, usedFirebasePhone }
+    let phoneRecaptchaVerifier = null;
 
     function generateOtpCode() {
       const arr = new Uint32Array(1);
@@ -2641,16 +2643,33 @@
       return String(Math.floor(100000 + Math.random() * 900000));
     }
 
+    async function ensurePhoneRecaptcha() {
+      if (!auth || !RecaptchaVerifier) return null;
+      if (!phoneRecaptchaVerifier) {
+        phoneRecaptchaVerifier = new RecaptchaVerifier(auth, 'firebaseRecaptchaContainer', { size: 'invisible' });
+      }
+      return phoneRecaptchaVerifier;
+    }
+
+    function otpDocIdForContact(contact) {
+      return contact.kind + '_' + contact.normalized.replace(/[^a-z0-9]/gi, '_');
+    }
+
     async function sendVerificationCode(contact) {
       const code = generateOtpCode();
       const expiresAt = Date.now() + 5 * 60 * 1000;
       const existing = findUserByContact(contact);
+      const otpDocId = otpDocIdForContact(contact);
+
       otpSession = {
         contact,
         existingUser: existing || null,
         code,
         expiresAt,
-        verified: false
+        verified: false,
+        confirmationResult: null,
+        otpDocId,
+        usedFirebasePhone: false
       };
 
       const otpBox = document.getElementById('authOtpBox');
@@ -2664,32 +2683,101 @@
       otpBox.classList.remove('hidden');
       backBtn.classList.remove('hidden');
       codeInp.value = '';
+      hintEl.textContent = `Отправка кода на ${contact.normalized}...`;
+      previewEl.textContent = '';
 
-      hintEl.textContent = contact.kind === 'email'
-        ? `Код отправлен на ${contact.normalized}`
-        : `Код отправлен на ${contact.normalized}`;
+      // 1) Для телефона пробуем официальный Firebase Phone Auth (SMS)
+      if (contact.kind === 'phone' && useCloud && auth && signInWithPhoneNumber) {
+        try {
+          const verifier = await ensurePhoneRecaptcha();
+          const confirmationResult = await signInWithPhoneNumber(auth, contact.normalized, verifier);
+          otpSession.confirmationResult = confirmationResult;
+          otpSession.usedFirebasePhone = true;
+          hintEl.textContent = `SMS-код отправлен через Firebase на ${contact.normalized}`;
+          previewEl.textContent = 'Введите код из SMS.';
+          document.getElementById('authSubmitBtn').textContent = 'Подтвердить код';
+          codeInp.focus();
+          showToast('SMS-код отправлен через Firebase', 'info');
+          return;
+        } catch (err) {
+          console.warn('Firebase Phone Auth fallback to Firestore OTP:', err);
+          phoneRecaptchaVerifier = null;
+        }
+      }
 
-      // Если настроен внешний вебхук отправки кода (например, EmailJS/SMS API), пробуем вызвать его
+      // 2) Сохраняем код в Firebase Firestore (hg_otp_codes) с проверкой срока действия
+      if (useCloud && db) {
+        try {
+          await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'hg_otp_codes', otpDocId), {
+            channel: contact.kind,
+            contact: contact.normalized,
+            code,
+            expiresAt,
+            createdAt: Date.now()
+          });
+        } catch (err) {
+          console.warn('Firestore OTP write warning:', err);
+        }
+      }
+
       const hookUrl = window.HYPERGRAM_OTP_WEBHOOK || '';
       if (hookUrl) {
-        previewEl.textContent = 'Отправка кода...';
         try {
           await fetch(hookUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ channel: contact.kind, contact: contact.normalized, code })
           });
-          previewEl.textContent = contact.kind === 'email' ? 'Проверьте входящие и папку «Спам».' : 'Проверьте входящие сообщения.';
+          hintEl.textContent = `Код отправлен на ${contact.normalized}`;
+          previewEl.textContent = contact.kind === 'email' ? 'Проверьте почту и папку «Спам».' : 'Проверьте сообщения.';
         } catch (err) {
-          previewEl.textContent = `Код подтверждения: ${code}`;
+          hintEl.textContent = `Код подтверждения для ${contact.normalized}`;
+          previewEl.textContent = `Firebase OTP код: ${code}`;
         }
       } else {
-        previewEl.textContent = `Код подтверждения (${contact.kind === 'email' ? 'почта' : 'SMS'}): ${code}`;
+        hintEl.textContent = `Код подтверждения для ${contact.normalized}`;
+        previewEl.textContent = `Firebase OTP код: ${code}`;
       }
 
       document.getElementById('authSubmitBtn').textContent = 'Подтвердить код';
       codeInp.focus();
       showToast(`Код подтверждения: ${code}`, 'info');
+    }
+
+    async function verifyOtpCode(enteredCode) {
+      if (!otpSession) return false;
+      if (otpSession.usedFirebasePhone && otpSession.confirmationResult) {
+        await otpSession.confirmationResult.confirm(enteredCode);
+        return true;
+      }
+
+      let activeCode = otpSession.code;
+      let activeExpiresAt = otpSession.expiresAt;
+
+      if (useCloud && db && otpSession.otpDocId) {
+        try {
+          const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'hg_otp_codes', otpSession.otpDocId));
+          if (snap.exists()) {
+            const d = snap.data();
+            if (d.code) activeCode = String(d.code);
+            if (d.expiresAt) activeExpiresAt = Number(d.expiresAt);
+          }
+        } catch (err) {
+          console.warn('Firestore OTP read warning:', err);
+        }
+      }
+
+      if (Date.now() > activeExpiresAt) {
+        throw new Error('EXPIRED');
+      }
+      if (enteredCode !== activeCode) {
+        throw new Error('INVALID');
+      }
+
+      if (useCloud && db && otpSession.otpDocId) {
+        deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'hg_otp_codes', otpSession.otpDocId)).catch(() => {});
+      }
+      return true;
     }
 
     window.resendAuthCode = async function() {
@@ -2759,22 +2847,21 @@
         return;
       }
 
-      // Шаг 1: отправка кода на почту или телефон
+      // Шаг 1: отправка кода на почту или телефон через Firebase
       if (!otpSession || otpSession.contact.normalized !== contact.normalized || otpSession.contact.kind !== contact.kind) {
         await sendVerificationCode(contact);
         return;
       }
 
-      // Шаг 2: проверка введённого кода
+      // Шаг 2: проверка введённого кода через Firebase
       if (!otpSession.verified) {
         const enteredCode = (document.getElementById('authOtpCode').value || '').trim();
-        if (Date.now() > otpSession.expiresAt) {
-          errEl.textContent = 'Срок действия кода истёк. Нажмите «Отправить заново».';
-          errEl.classList.remove('hidden');
-          return;
-        }
-        if (enteredCode !== otpSession.code) {
-          errEl.textContent = 'Неверный код подтверждения.';
+        try {
+          await verifyOtpCode(enteredCode);
+        } catch (err) {
+          errEl.textContent = err.message === 'EXPIRED'
+            ? 'Срок действия кода истёк. Нажмите «Отправить заново».'
+            : 'Неверный код подтверждения.';
           errEl.classList.remove('hidden');
           return;
         }
@@ -2807,7 +2894,7 @@
         return;
       }
 
-      // Шаг 3: создание аккаунта после подтверждения кода
+      // Шаг 3: создание аккаунта в Firebase после подтверждения кода
       const displayName = (document.getElementById('authDisplayName').value || '').trim();
       const rawHandle = (document.getElementById('authUsername').value || '').trim();
       let uid = normalizeId(rawHandle);
