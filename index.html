@@ -192,11 +192,20 @@
         <button id="authChannelEmail" type="button" onclick="setAuthChannel('email')" class="py-2 rounded-xl text-xs font-semibold text-slate-500 dark:text-[#8d887c] hover:text-slate-900 dark:hover:text-white transition">Почта</button>
       </div>
 
-      <!-- Форма без пароля -->
+      <!-- Форма входа и подтверждения по коду -->
       <form id="authForm" onsubmit="handleAuthSubmit(event)" class="space-y-4">
         <div id="authContactGroup">
           <label id="authContactLabel" class="block text-xs font-semibold text-slate-500 dark:text-[#8d887c] mb-1.5">Номер телефона</label>
           <input id="authContact" type="tel" required placeholder="+7 999 123-45-67" autocomplete="tel" class="w-full px-4 py-3 rounded-xl bg-slate-100 dark:bg-[#262421] text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/60 transition" />
+        </div>
+
+        <div id="authOtpBox" class="hidden space-y-2.5 p-3.5 rounded-2xl bg-slate-100 dark:bg-[#262421] border border-slate-200 dark:border-[#36322e]">
+          <div class="flex items-center justify-between gap-2">
+            <span id="authOtpHint" class="text-xs font-semibold hg-accent-text">Код подтверждения отправлен</span>
+            <button id="authResendOtpBtn" type="button" onclick="resendAuthCode()" class="text-[11px] font-semibold text-slate-500 dark:text-[#8d887c] hover:underline">Отправить заново</button>
+          </div>
+          <input id="authOtpCode" type="text" inputmode="numeric" maxlength="6" pattern="[0-9]*" placeholder="Введите 6-значный код" autocomplete="one-time-code" class="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-[#1a1917] border border-slate-200 dark:border-[#36322e] text-slate-900 dark:text-white text-sm tracking-[0.25em] font-bold text-center focus:outline-none focus:ring-2 focus:ring-sky-500/60 transition" />
+          <div id="authOtpPreview" class="text-[11px] text-slate-500 dark:text-[#8d887c] text-center"></div>
         </div>
 
         <div id="authRegisterExtra" class="hidden space-y-4">
@@ -213,7 +222,11 @@
         <div id="authError" class="hidden p-3 rounded-xl bg-red-500/15 border border-red-500/30 text-red-400 text-xs font-medium text-center"></div>
 
         <button id="authSubmitBtn" type="submit" class="w-full py-3 rounded-xl hg-accent-bg text-white font-semibold text-sm tracking-wide transition active:translate-y-px">
-          Продолжить
+          Получить код
+        </button>
+
+        <button id="authBackStepBtn" type="button" onclick="resetAuthStep()" class="hidden w-full py-2 text-xs text-slate-500 dark:text-[#8d887c] hover:text-slate-900 dark:hover:text-white transition">
+          Изменить номер или почту
         </button>
       </form>
 
@@ -2617,25 +2630,110 @@
     // =========================================================
     // АВТОРИЗАЦИЯ И РЕГИСТРАЦИЯ
     // =========================================================
+    let otpSession = null; // { contact, existingUser, code, expiresAt, verified }
+
+    function generateOtpCode() {
+      const arr = new Uint32Array(1);
+      if (window.crypto && window.crypto.getRandomValues) {
+        window.crypto.getRandomValues(arr);
+        return String(100000 + (arr[0] % 900000));
+      }
+      return String(Math.floor(100000 + Math.random() * 900000));
+    }
+
+    async function sendVerificationCode(contact) {
+      const code = generateOtpCode();
+      const expiresAt = Date.now() + 5 * 60 * 1000;
+      const existing = findUserByContact(contact);
+      otpSession = {
+        contact,
+        existingUser: existing || null,
+        code,
+        expiresAt,
+        verified: false
+      };
+
+      const otpBox = document.getElementById('authOtpBox');
+      const hintEl = document.getElementById('authOtpHint');
+      const previewEl = document.getElementById('authOtpPreview');
+      const codeInp = document.getElementById('authOtpCode');
+      const contactInp = document.getElementById('authContact');
+      const backBtn = document.getElementById('authBackStepBtn');
+
+      contactInp.disabled = true;
+      otpBox.classList.remove('hidden');
+      backBtn.classList.remove('hidden');
+      codeInp.value = '';
+
+      hintEl.textContent = contact.kind === 'email'
+        ? `Код отправлен на ${contact.normalized}`
+        : `Код отправлен на ${contact.normalized}`;
+
+      // Если настроен внешний вебхук отправки кода (например, EmailJS/SMS API), пробуем вызвать его
+      const hookUrl = window.HYPERGRAM_OTP_WEBHOOK || '';
+      if (hookUrl) {
+        previewEl.textContent = 'Отправка кода...';
+        try {
+          await fetch(hookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ channel: contact.kind, contact: contact.normalized, code })
+          });
+          previewEl.textContent = contact.kind === 'email' ? 'Проверьте входящие и папку «Спам».' : 'Проверьте входящие сообщения.';
+        } catch (err) {
+          previewEl.textContent = `Код подтверждения: ${code}`;
+        }
+      } else {
+        previewEl.textContent = `Код подтверждения (${contact.kind === 'email' ? 'почта' : 'SMS'}): ${code}`;
+      }
+
+      document.getElementById('authSubmitBtn').textContent = 'Подтвердить код';
+      codeInp.focus();
+      showToast(`Код подтверждения: ${code}`, 'info');
+    }
+
+    window.resendAuthCode = async function() {
+      if (!otpSession?.contact) return;
+      document.getElementById('authError').classList.add('hidden');
+      await sendVerificationCode(otpSession.contact);
+    };
+
+    window.resetAuthStep = function() {
+      otpSession = null;
+      pendingNewContact = null;
+      const contactInp = document.getElementById('authContact');
+      contactInp.disabled = false;
+      document.getElementById('authOtpBox').classList.add('hidden');
+      document.getElementById('authRegisterExtra').classList.add('hidden');
+      document.getElementById('authBackStepBtn').classList.add('hidden');
+      document.getElementById('authError').classList.add('hidden');
+      document.getElementById('authSubmitBtn').textContent = 'Получить код';
+      contactInp.focus();
+    };
+
     window.setAuthChannel = function(channel) {
       authChannel = channel;
+      otpSession = null;
       pendingNewContact = null;
+      const contactInp = document.getElementById('authContact');
+      contactInp.disabled = false;
       document.getElementById('authError').classList.add('hidden');
+      document.getElementById('authOtpBox').classList.add('hidden');
       document.getElementById('authRegisterExtra').classList.add('hidden');
-      document.getElementById('authSubmitBtn').textContent = 'Продолжить';
+      document.getElementById('authBackStepBtn').classList.add('hidden');
+      document.getElementById('authSubmitBtn').textContent = 'Получить код';
 
       const lbl = document.getElementById('authContactLabel');
-      const inp = document.getElementById('authContact');
       if (channel === 'email') {
         lbl.textContent = 'Электронная почта';
-        inp.type = 'email';
-        inp.placeholder = 'name@example.com';
-        inp.autocomplete = 'email';
+        contactInp.type = 'email';
+        contactInp.placeholder = 'name@example.com';
+        contactInp.autocomplete = 'email';
       } else {
         lbl.textContent = 'Номер телефона';
-        inp.type = 'tel';
-        inp.placeholder = '+7 999 123-45-67';
-        inp.autocomplete = 'tel';
+        contactInp.type = 'tel';
+        contactInp.placeholder = '+7 999 123-45-67';
+        contactInp.autocomplete = 'tel';
       }
 
       const activeCls = 'py-2 rounded-xl text-xs font-semibold hg-accent-bg text-white transition';
@@ -2661,22 +2759,39 @@
         return;
       }
 
-      const existing = findUserByContact(contact);
-      if (existing) {
-        pendingNewContact = null;
-        loginSuccess(existing.id);
+      // Шаг 1: отправка кода на почту или телефон
+      if (!otpSession || otpSession.contact.normalized !== contact.normalized || otpSession.contact.kind !== contact.kind) {
+        await sendVerificationCode(contact);
         return;
       }
 
-      // Новый контакт: первый шаг открывает ввод имени и @ника (без пароля и дублей)
-      const extraEl = document.getElementById('authRegisterExtra');
-      const isStep2 = !extraEl.classList.contains('hidden') &&
-        pendingNewContact &&
-        pendingNewContact.kind === contact.kind &&
-        pendingNewContact.normalized === contact.normalized;
+      // Шаг 2: проверка введённого кода
+      if (!otpSession.verified) {
+        const enteredCode = (document.getElementById('authOtpCode').value || '').trim();
+        if (Date.now() > otpSession.expiresAt) {
+          errEl.textContent = 'Срок действия кода истёк. Нажмите «Отправить заново».';
+          errEl.classList.remove('hidden');
+          return;
+        }
+        if (enteredCode !== otpSession.code) {
+          errEl.textContent = 'Неверный код подтверждения.';
+          errEl.classList.remove('hidden');
+          return;
+        }
+        otpSession.verified = true;
 
-      if (!isStep2) {
+        const existing = findUserByContact(contact) || otpSession.existingUser;
+        if (existing) {
+          otpSession = null;
+          pendingNewContact = null;
+          loginSuccess(existing.id);
+          return;
+        }
+
+        // Код верен, аккаунта ещё нет — открываем ввод имени и @ника
         pendingNewContact = contact;
+        document.getElementById('authOtpBox').classList.add('hidden');
+        const extraEl = document.getElementById('authRegisterExtra');
         extraEl.classList.remove('hidden');
         document.getElementById('authSubmitBtn').textContent = 'Создать аккаунт';
         const nameInp = document.getElementById('authDisplayName');
@@ -2692,6 +2807,7 @@
         return;
       }
 
+      // Шаг 3: создание аккаунта после подтверждения кода
       const displayName = (document.getElementById('authDisplayName').value || '').trim();
       const rawHandle = (document.getElementById('authUsername').value || '').trim();
       let uid = normalizeId(rawHandle);
@@ -2705,13 +2821,14 @@
         return;
       }
 
-      // Если такой @ник уже занят другим контактом, добавим короткий суффикс вместо ошибки создания миллиона аккаунтов
       let taken = !!usersMap[uid];
       try { if (!taken) taken = await docExists('hg_users', uid); } catch (err) { console.warn(err); }
       if (taken && usersMap[uid]) {
         const samePhone = contact.kind === 'phone' && usersMap[uid].phone === contact.normalized;
         const sameEmail = contact.kind === 'email' && usersMap[uid].email === contact.normalized;
         if (samePhone || sameEmail) {
+          otpSession = null;
+          pendingNewContact = null;
           loginSuccess(uid);
           return;
         }
@@ -2739,6 +2856,7 @@
         banned: false,
         createdAt: Date.now()
       });
+      otpSession = null;
       pendingNewContact = null;
       loginSuccess(uid);
     };
