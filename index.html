@@ -638,6 +638,74 @@
       away:      { label: 'Отошёл',          dot: 'bg-amber-500' },
       invisible: { label: 'Невидимка',       dot: 'bg-slate-400' }
     };
+    const OFFLINE_STATUS = { key: 'offline', label: 'Не в сети', dot: 'bg-slate-500' };
+    const PRESENCE_TTL_MS = 45000; // 45 сек без heartbeat = не в сети
+    const PRESENCE_PING_MS = 20000; // обновление присутствия каждые 20 сек
+    const presenceSeenMap = {}; // { userId: { lastSeenAt, isOnline, localSeenAt } }
+    let presenceSnapInitialized = false;
+    let lastPresenceSentAt = 0;
+
+    function syncPresenceSeen(nextUsers) {
+      const now = Date.now();
+      Object.values(nextUsers).forEach(u => {
+        if (!u || !u.id) return;
+        const prev = presenceSeenMap[u.id];
+        const rawLastSeen = Number(u.lastSeenAt || 0);
+        const explicitlyOffline = u.isOnline === false;
+        if (explicitlyOffline) {
+          presenceSeenMap[u.id] = { lastSeenAt: rawLastSeen, isOnline: false, localSeenAt: 0 };
+          return;
+        }
+        if (!presenceSnapInitialized) {
+          if (u.isOnline === true || (rawLastSeen > 0 && Math.abs(now - rawLastSeen) < PRESENCE_TTL_MS * 2)) {
+            presenceSeenMap[u.id] = { lastSeenAt: rawLastSeen, isOnline: true, localSeenAt: now };
+          } else {
+            presenceSeenMap[u.id] = { lastSeenAt: rawLastSeen, isOnline: false, localSeenAt: 0 };
+          }
+        } else if (!prev || prev.lastSeenAt !== rawLastSeen || prev.isOnline !== (u.isOnline !== false)) {
+          presenceSeenMap[u.id] = {
+            lastSeenAt: rawLastSeen,
+            isOnline: u.isOnline !== false,
+            localSeenAt: u.isOnline === false ? 0 : now
+          };
+        }
+      });
+      presenceSnapInitialized = true;
+    }
+
+    function isUserActuallyOnline(u) {
+      if (!u || !u.id) return false;
+      if (u.id === currentUserId) return !document.hidden;
+      if (u.isOnline === false) return false;
+      const seen = presenceSeenMap[u.id];
+      if (!seen || !seen.isOnline || !seen.localSeenAt) return false;
+      return (Date.now() - seen.localSeenAt) < PRESENCE_TTL_MS;
+    }
+
+    function getUserDisplayStatus(u) {
+      if (!u) return OFFLINE_STATUS;
+      const chosen = u.status || 'online';
+      // Для самого себя в профиле/настройках показываем выбранный статус, если он на сайте
+      if (u.id === currentUserId) {
+        return STATUS_META[chosen] || STATUS_META.online;
+      }
+      // Если пользователь не на сайте или выбрал «Невидимку» — для остальных он «Не в сети»
+      if (!isUserActuallyOnline(u) || chosen === 'invisible') {
+        return OFFLINE_STATUS;
+      }
+      return STATUS_META[chosen] || STATUS_META.online;
+    }
+
+    function updateMyPresence(online, force = false) {
+      if (!currentUserId || !usersMap[currentUserId]) return;
+      const now = Date.now();
+      if (!force && online && (now - lastPresenceSentAt) < (PRESENCE_PING_MS - 2000)) return;
+      lastPresenceSentAt = online ? now : 0;
+      dbUpdate('hg_users', currentUserId, {
+        isOnline: !!online,
+        lastSeenAt: now
+      }).catch(() => {});
+    }
 
     const EMOJIS = ['😀','😂','😍','🔥','⚡','❤️','👍','🎉','🚀','💎','👑','🛡️','😎','🤝','🤔','😢','🙏','💯','✨','✅','📢'];
     const QUICK_REACTIONS = ['❤️','🔥','👍','😂','⚡','💯'];
@@ -2196,6 +2264,7 @@
             const next = {};
             snap.forEach(d => { next[d.id] = d.data(); });
             usersMap = next;
+            syncPresenceSeen(next);
             syncTypingSeen(next);
             tryRestoreSession(!snap.metadata.fromCache);
             renderIfLoggedIn();
@@ -2558,8 +2627,11 @@
       activeChatId = getLastChat(uid);
 
       saveSession(uid);
-      if (!restored && usersMap[uid]) {
-        dbUpdate('hg_users', uid, { lastLoginAt: Date.now() }).catch(() => {});
+      if (usersMap[uid]) {
+        const loginPatch = { isOnline: !document.hidden, lastSeenAt: Date.now() };
+        if (!restored) loginPatch.lastLoginAt = Date.now();
+        lastPresenceSentAt = !document.hidden ? Date.now() : 0;
+        dbUpdate('hg_users', uid, loginPatch).catch(() => {});
       }
 
       if (usersMap[uid]?.hgSettings) {
@@ -2590,7 +2662,8 @@
       const uid = currentUserId;
       saveLastChat();
       if (uid && usersMap[uid]) {
-        dbUpdate('hg_users', uid, { lastLogoutAt: Date.now() }).catch(() => {});
+        lastPresenceSentAt = 0;
+        dbUpdate('hg_users', uid, { isOnline: false, lastSeenAt: Date.now(), lastLogoutAt: Date.now() }).catch(() => {});
       }
       clearSession();
       currentUserId = null;
@@ -2643,7 +2716,7 @@
       if (chat.type === 'dm') {
         const peerId = (chat.participants || []).find(id => id !== currentUserId) || currentUserId;
         const peer = usersMap[peerId] || { displayName: 'Пользователь', username: '@user', initials: '?', avatarColor: 'from-slate-500 to-slate-600', badges: {} };
-        const st = STATUS_META[peer.status || 'online'] || STATUS_META.online;
+        const st = getUserDisplayStatus(peer);
         const isBlocked = settings.blockedUsers.includes(peerId);
         return {
           title: peer.displayName,
@@ -3343,7 +3416,7 @@
         const u = usersMap[infoTarget.id];
         if (!u) return;
         const b = u.badges || {};
-        const st = STATUS_META[u.status || 'online'] || STATUS_META.online;
+        const st = getUserDisplayStatus(u);
         const isBlocked = settings.blockedUsers.includes(u.id);
 
         c.innerHTML = `
@@ -4342,9 +4415,18 @@
       const f = e.dataTransfer?.files?.[0];
       if (f && (f.type.startsWith('image/') || f.type.startsWith('video/'))) attachMediaFile(f);
     });
-    window.addEventListener('beforeunload', () => notifyTyping(false));
+    function handleLeaveSite() {
+      notifyTyping(false);
+      updateMyPresence(false, true);
+    }
+    window.addEventListener('beforeunload', handleLeaveSite);
+    window.addEventListener('pagehide', handleLeaveSite);
     document.addEventListener('visibilitychange', () => {
-      if (!document.hidden) {
+      if (document.hidden) {
+        notifyTyping(false);
+        updateMyPresence(false, true);
+      } else {
+        updateMyPresence(true, true);
         if (currentUserId && settings.pinCode && (Number(settings.pinTimeoutSec) || 0) > 0 && isPinRequiredNow(currentUserId)) {
           lockScreenNow(false);
         } else {
@@ -4352,13 +4434,19 @@
         }
       }
     });
-    window.addEventListener('focus', () => markActiveChatAsRead());
+    window.addEventListener('focus', () => {
+      updateMyPresence(true, false);
+      markActiveChatAsRead();
+    });
     document.getElementById('chatArea').addEventListener('pointerdown', () => markActiveChatAsRead());
     ['pointerdown', 'keydown'].forEach(ev => document.addEventListener(ev, touchPinActivity, { passive: true }));
 
-    // Автообновление статуса и проверка таймаута PIN-блокировки
+    // Автообновление статуса, присутствия и проверка таймаута PIN-блокировки
     setInterval(() => {
       if (!currentUserId) return;
+      if (!document.hidden) {
+        updateMyPresence(true, false);
+      }
       const timeoutSec = Number(settings.pinTimeoutSec) || 0;
       const pinScreen = document.getElementById('pinLockScreen');
       if (settings.pinCode && timeoutSec > 0 && pinScreen && pinScreen.classList.contains('hidden')) {
@@ -4368,6 +4456,7 @@
       }
       updateActiveChatHeaderStatus();
       renderChatList();
+      if (infoTarget && infoTarget.type === 'user') renderInfoPanel();
     }, 1500);
 
     msgInputEl.addEventListener('keydown', (e) => {
