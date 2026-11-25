@@ -7,7 +7,7 @@
   <script>
     (function () {
       try {
-        var t = (JSON.parse(localStorage.getItem('hyperchat_settings_v1') || '{}')).theme || 'dark';
+        var t = (JSON.parse(localStorage.getItem('hypergram_settings_v1') || '{}')).theme || 'dark';
         document.documentElement.style.background = t === 'dark' ? '#121110' : '#f1f5f9';
       } catch (e) { document.documentElement.style.background = '#121110'; }
       setTimeout(function () { var b = document.getElementById('hgBoot'); if (b) b.remove(); }, 2500);
@@ -144,127 +144,32 @@
       background-color: #ffffff;
     }
 
+    /* ===== EMBER v2: обновлённый дизайн ===== */
+    .text-\[9px\] { font-size: 11px !important; }
+    .text-\[10px\] { font-size: 12px !important; }
+    .text-\[11px\] { font-size: 12.5px !important; }
 
-    /* ===== HYPERCHAT REFINED TACTILE UI ===== */
-    :root {
-      --hg-surface-dark: #151412;
-      --hg-panel-dark: #1c1a18;
-      --hg-elevated-dark: #25221f;
-      --hg-border-dark: rgba(250, 247, 240, 0.085);
-      --hg-surface-light: #efece3;
-      --hg-panel-light: #faf7f0;
-      --hg-elevated-light: #f3efe4;
-      --hg-border-light: rgba(26, 24, 20, 0.1);
-    }
+    .hg-bubble { line-height: 1.45; box-shadow: 0 1px 2px rgba(0,0,0,.18); }
+    .hg-bubble-out { border-bottom-right-radius: 6px !important; }
+    .hg-bubble:not(.hg-bubble-out) { border-bottom-left-radius: 6px !important; }
+    .hg-msg-text { line-height: 1.5; }
 
-    body {
-      background-color: var(--hg-surface-dark);
-    }
-    html:not(.dark) body {
-      background-color: var(--hg-surface-light);
-    }
+    .hg-chat-row { border-radius: 16px; border-bottom-color: transparent !important; margin-bottom: 2px; }
+    .hg-chat-active { box-shadow: none !important; }
 
-    .hg-bubble {
-      line-height: 1.46;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.16);
-      transition: transform 0.12s ease, border-color 0.15s ease, background-color 0.15s ease;
-    }
-    .hg-bubble-out {
-      border-bottom-right-radius: 5px !important;
-      box-shadow: 0 4px 14px color-mix(in srgb, var(--hg-accent) 28%, transparent);
-    }
-    .hg-bubble:not(.hg-bubble-out) {
-      border-bottom-left-radius: 5px !important;
-    }
-    .hg-msg-text {
-      line-height: 1.5;
-    }
+    .hg-switch { width: 46px; height: 26px; border-radius: 13px; }
+    .hg-switch::after { top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; }
+    .hg-switch[aria-checked="true"]::after { transform: translateX(20px); }
 
-    .hg-chat-row {
-      border-radius: 16px;
-      border-bottom-color: transparent !important;
-      margin-bottom: 2px;
-      transition: background-color 0.14s ease, transform 0.12s ease;
-    }
-    .hg-chat-row:active {
-      transform: scale(0.992);
-    }
-    .hg-chat-active {
-      box-shadow: inset 3px 0 0 var(--hg-accent) !important;
-    }
+    .custom-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+    .custom-scroll::-webkit-scrollbar-thumb { border-radius: 4px; }
 
-    /* Улучшенный акцентный переключатель */
-    .hg-switch {
-      width: 46px;
-      height: 26px;
-      border-radius: 999px;
-      background: #47443b;
-      transition: background 0.16s ease;
-    }
-    html:not(.dark) .hg-switch {
-      background: #bdb7a6;
-    }
-    .hg-switch::after {
-      top: 3px;
-      left: 3px;
-      width: 20px;
-      height: 20px;
-      border-radius: 999px;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-      transition: transform 0.16s cubic-bezier(0.2, 0.8, 0.2, 1);
-    }
-    .hg-switch[aria-checked="true"]::after {
-      transform: translateX(20px);
-    }
-
-    /* Стеклянный композер и плавающие панели */
-    .hg-glass-bar {
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
-    }
-
-    .hg-composer-box {
-      transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
-    }
-    .hg-composer-box:focus-within {
-      border-color: var(--hg-accent);
-      box-shadow: 0 0 0 3px var(--hg-accent-soft);
-    }
-
-    #hgFab {
-      box-shadow: 0 10px 24px color-mix(in srgb, var(--hg-accent) 42%, transparent);
-      transition: transform 0.14s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.15s ease, box-shadow 0.15s ease;
-    }
-    #hgFab:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 14px 28px color-mix(in srgb, var(--hg-accent) 48%, transparent);
-    }
-    #hgFab:active {
-      transform: scale(0.94);
-    }
-
-    .custom-scroll::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
-    .custom-scroll::-webkit-scrollbar-thumb {
-      border-radius: 999px;
-      background: rgba(130, 122, 108, 0.32);
-    }
-    .custom-scroll::-webkit-scrollbar-thumb:hover {
-      background: rgba(130, 122, 108, 0.52);
-    }
-
-    button:focus-visible, a:focus-visible {
-      outline: 2px solid var(--hg-accent);
-      outline-offset: 2px;
-    }
-    input:focus-visible, textarea:focus-visible, select:focus-visible {
-      outline: none;
-    }
-    #messageInput {
-      line-height: 1.45;
-    }
+    button:focus-visible, a:focus-visible { outline: 2px solid var(--hg-accent); outline-offset: 2px; }
+    input:focus-visible, textarea:focus-visible, select:focus-visible { outline: none; }
+    #hgFab { box-shadow: 0 8px 22px rgba(226, 70, 31, .38); transition: transform .12s ease, background-color .12s ease; }
+    #hgFab:active { transform: scale(.94); }
+    #messageInput { line-height: 1.4; }
+    .hg-sig { height: 3px; }
   </style>
 </head>
 
@@ -369,7 +274,7 @@
   </div>
   <script>
     try {
-      var s = JSON.parse(localStorage.getItem('hyperchat_session_v1') || 'null');
+      var s = JSON.parse(localStorage.getItem('hypergram_session_v1') || 'null');
       if (s && s.userId) {
         document.getElementById('sessionLoader').classList.remove('hidden');
         document.getElementById('authScreen').classList.add('hidden');
@@ -450,11 +355,9 @@
     <main id="chatArea" class="hidden md:flex flex-1 flex-col h-full relative min-w-0">
       <!-- Заглушка -->
       <div id="emptyChatState" class="flex-1 flex flex-col items-center justify-center p-6 text-center chat-wallpaper-dark wp-lines">
-        <div class="px-8 py-7 rounded-3xl bg-white/85 dark:bg-[#1a1917]/85 hg-glass-bar border border-slate-200/80 dark:border-[#2e2b28] max-w-sm">
-          <div class="font-display text-5xl font-extrabold mb-3">hyperchat<span class="hg-accent-text">.</span></div>
-          <h2 class="text-lg font-bold">Выберите чат</h2>
-          <p class="text-xs text-slate-500 dark:text-[#8d887c] mt-1.5 leading-relaxed">Откройте общий чат, новости, создайте группу или найдите пользователя по @нику слева.</p>
-        </div>
+        <div class="font-display text-5xl font-extrabold mb-4">hyperchat<span class="hg-accent-text">.</span></div>
+        <h2 class="text-lg font-bold">Выберите чат</h2>
+        <p class="text-xs text-slate-500 dark:text-[#8d887c] mt-1 max-w-xs">Откройте общий чат, новости или найдите любого пользователя по @нику в поиске слева.</p>
       </div>
 
       <!-- Активный чат -->
@@ -570,8 +473,8 @@
                 </button>
               </div>
             </div>
-            <div class="flex-1 relative hg-composer-box rounded-2xl bg-slate-100 dark:bg-[#262421] border border-slate-200/70 dark:border-[#36322e]">
-              <textarea id="messageInput" rows="1" placeholder="Сообщение..." class="w-full max-h-32 resize-none rounded-2xl bg-transparent text-slate-900 dark:text-slate-100 placeholder-slate-400 px-4 py-3 pr-12 text-[15px] focus:outline-none transition custom-scroll block"></textarea>
+            <div class="flex-1 relative">
+              <textarea id="messageInput" rows="1" placeholder="Сообщение..." class="w-full max-h-32 resize-none rounded-2xl bg-slate-100 dark:bg-[#262421] text-slate-900 dark:text-slate-100 placeholder-slate-400 px-4 py-3 pr-12 text-[15px] focus:outline-none focus:ring-2 focus:ring-sky-500/50 transition custom-scroll"></textarea>
               <button id="btnEmoji" onclick="toggleEmojiPopover(event)" class="absolute right-2 bottom-1.5 w-9 h-9 flex items-center justify-center rounded-xl hover:bg-slate-200/70 dark:hover:bg-[#36322e] text-slate-500 dark:text-[#8d887c]"><svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0zM8.5 14.5a4.5 4.5 0 007 0M9 9.5h.01M15 9.5h.01"/></svg></button>
               <div id="emojiPopover" class="hidden absolute bottom-12 right-0 w-64 rounded-2xl bg-white dark:bg-[#211f1d] border border-slate-200 dark:border-[#36322e] shadow-2xl p-2.5 z-30">
                 <div id="emojiGrid" class="grid grid-cols-7 gap-1 text-lg"></div>
@@ -752,7 +655,7 @@
 
     <!-- БАННЕР ЗАБАНЕННОГО АККАУНТА -->
     <div id="bannedBanner" class="hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-40 px-4 py-2.5 rounded-xl bg-red-600 text-white text-xs font-bold shadow-2xl flex items-center gap-2">
-      <span>Ваш аккаунт заблокирован администратором @Hyperchat. Вы не можете отправлять сообщения.</span>
+      <span>Ваш аккаунт заблокирован администратором @Hypergram. Вы не можете отправлять сообщения.</span>
     </div>
   </div>
 
@@ -989,16 +892,16 @@
     // Состояние приложения
     let db = null;
     let auth = null;
-    let appId = typeof __app_id !== 'undefined' ? __app_id : 'hyperchat-default';
+    let appId = typeof __app_id !== 'undefined' ? __app_id : 'hypergram-default';
 
     // =========================================================
-    // ОБЩАЯ БАЗА ДЛЯ ВСЕХ ПОЛЬЗОВАТЕЛЕЙ (Firebase hyperchat-5f5ee)
+    // ОБЩАЯ БАЗА ДЛЯ ВСЕХ ПОЛЬЗОВАТЕЛЕЙ (Firebase hypergram-5f5ee)
     // =========================================================
     const FIREBASE_CONFIG = {
       apiKey: 'AIzaSyBIKMAfnM-9Mt23btqTh0pxIi5o63w-P_Y',
-      authDomain: 'hyperchat-5f5ee.firebaseapp.com',
-      projectId: 'hyperchat-5f5ee',
-      storageBucket: 'hyperchat-5f5ee.firebasestorage.app',
+      authDomain: 'hypergram-5f5ee.firebaseapp.com',
+      projectId: 'hypergram-5f5ee',
+      storageBucket: 'hypergram-5f5ee.firebasestorage.app',
       messagingSenderId: '587088350954',
       appId: '1:587088350954:web:ddc1e420ad995858695193'
     };
@@ -1006,10 +909,10 @@
     // =========================================================
     // ПАРОЛИ: в базе хранится только соленый хеш, а не сам пароль
     // =========================================================
-    const ADMIN_IDS = ['hyperchat', 'danya'];
-    const ADMIN_SALT = 'hyperchat-admin';
+    const ADMIN_IDS = ['hypergram', 'danya'];
+    const ADMIN_SALT = 'hypergram-admin';
     const ADMIN_HASH = '807bf9b0444fba2506169bbd8185aab79066bd33275218725fbc2d7f78557c61';
-    const DANYA_SALT = 'hyperchat-admin-danya';
+    const DANYA_SALT = 'hypergram-admin-danya';
     const DANYA_HASH = 'd4df6168b8dee3a73198cc42318df2aed1c2f44fb1ab7af5d177962578d19b69';
     const HASH_ROUNDS = 5000;
     const MESSAGES_LIMIT = 300;
@@ -1493,7 +1396,7 @@
     function canWriteToChat(chat, uid = currentUserId) {
       if (!chat || !uid) return { ok: false, reason: '' };
       const u = usersMap[uid];
-      if (u?.banned) return { ok: false, reason: 'Ваш аккаунт заблокирован администратором @Hyperchat.' };
+      if (u?.banned) return { ok: false, reason: 'Ваш аккаунт заблокирован администратором @Hypergram.' };
       if (chat.type === 'dm') {
         const peerId = (chat.participants || []).find(id => id !== uid);
         if (peerId && settings.blockedUsers.includes(peerId)) {
@@ -2133,12 +2036,12 @@
       }
     };
 
-    const FALLBACK_KEY = 'hyperchat_fallback_db_v2';
-    const SESSION_KEY = 'hyperchat_session_v1';
-    const LAST_LOGIN_KEY = 'hyperchat_last_login_v1';
-    const LAST_CHAT_KEY = 'hyperchat_last_chat_v1';
-    const SETTINGS_KEY = 'hyperchat_settings_v1';
-    const PIN_UNLOCKED_KEY = 'hyperchat_pin_unlocked_v1';
+    const FALLBACK_KEY = 'hypergram_fallback_db_v2';
+    const SESSION_KEY = 'hypergram_session_v1';
+    const LAST_LOGIN_KEY = 'hypergram_last_login_v1';
+    const LAST_CHAT_KEY = 'hypergram_last_chat_v1';
+    const SETTINGS_KEY = 'hypergram_settings_v1';
+    const PIN_UNLOCKED_KEY = 'hypergram_pin_unlocked_v1';
 
     let sessionRestoreDone = false;
     let cloudSession = null;
@@ -2411,9 +2314,9 @@
       return seedPromise;
     }
     async function runSeed() {
-      await createIfMissing('hg_users', 'hyperchat', {
-        id: 'hyperchat',
-        username: '@Hyperchat',
+      await createIfMissing('hg_users', 'hypergram', {
+        id: 'hypergram',
+        username: '@Hypergram',
         displayName: 'Hyperchat',
         passHash: ADMIN_HASH,
         salt: ADMIN_SALT,
@@ -2462,7 +2365,7 @@
         id: 'news_channel',
         type: 'channel',
         title: 'Новости HYPERCHAT',
-        description: 'Официальный канал обновлений. Писать может только @Hyperchat.',
+        description: 'Официальный канал обновлений. Писать может только @Hypergram.',
         avatarColor: 'from-sky-500 to-blue-600',
         initials: '📢',
         badges: { verified: true, premium: true, staff: true, scam: false },
@@ -2473,12 +2376,12 @@
         await createIfMissing('hg_messages', 'welcome_news_1', {
           id: 'welcome_news_1',
           chatId: 'news_channel',
-          senderId: 'hyperchat',
+          senderId: 'hypergram',
           text: 'Добро пожаловать в HYPERCHAT! Общайтесь в реальном времени, находите друзей по @username и настраивайте мессенджер под себя.',
           replyToId: null,
-          reactions: { '🔥': ['hyperchat'] },
+          reactions: { '🔥': ['hypergram'] },
           timestamp: Date.now(),
-          readBy: ['hyperchat']
+          readBy: ['hypergram']
         });
       }
     }
@@ -2906,7 +2809,7 @@
     // =========================================================
     // PUSH-УВЕДОМЛЕНИЯ (FCM): СОСТОЯНИЕ ЭКРАНА И ВЫЗОВ WORKER
     // =========================================================
-    const PUSH_WORKER_URL = 'https://hyperchat-push.zeqbpes.workers.dev';
+    const PUSH_WORKER_URL = 'https://hypergram-push.zeqbpes.workers.dev';
 
     function syncPushPresenceState() {
       window.activeChatId = activeChatId;
@@ -5504,12 +5407,12 @@
       await dbSet('hg_messages', id, {
         id,
         chatId: 'news_channel',
-        senderId: 'hyperchat',
+        senderId: 'hypergram',
         text,
         replyToId: null,
         reactions: {},
         timestamp: Date.now(),
-        readBy: ['hyperchat']
+        readBy: ['hypergram']
       });
       closeAdminModal();
       selectChat('news_channel');
