@@ -68,7 +68,7 @@
     .hg-accent-text { color: var(--hg-accent) !important; }
     .hg-accent-border { border-color: var(--hg-accent) !important; }
     .hg-accent-soft { background-color: var(--hg-accent-soft) !important; }
-    .hg-chat-active { background-color: var(--hg-accent-soft) !important; box-shadow: inset 3px 0 0 var(--hg-accent) !important; }
+    .hg-chat-active { background-color: var(--hg-accent-soft) !important; box-: inset 3px 0 0 var(--hg-accent) !important; }
     .hg-bubble-out { background-color: var(--hg-accent-hover) !important; color: #fff !important; }
     .hg-bubble { border-radius: var(--hg-bubble-radius) !important; }
     .hg-msg-text { font-size: var(--hg-msg-font) !important; }
@@ -144,32 +144,86 @@
       background-color: #ffffff;
     }
 
-    /* ===== EMBER v2: обновлённый дизайн ===== */
-    .text-\[9px\] { font-size: 11px !important; }
-    .text-\[10px\] { font-size: 12px !important; }
-    .text-\[11px\] { font-size: 12.5px !important; }
 
-    .hg-bubble { line-height: 1.45; box-shadow: 0 1px 2px rgba(0,0,0,.18); }
-    .hg-bubble-out { border-bottom-right-radius: 6px !important; }
-    .hg-bubble:not(.hg-bubble-out) { border-bottom-left-radius: 6px !important; }
-    .hg-msg-text { line-height: 1.5; }
+    /* ===== МИНИМАЛИЗМ: ПЛОСКИЕ ПОВЕРХНОСТИ, ЧЁТКИЕ ГРАНИЦЫ, БЕЗ ТЕНЕЙ ===== */
+    *, *::before, *::after {
+      box-: none !important;
+      text-: none !important;
+    }
 
-    .hg-chat-row { border-radius: 16px; border-bottom-color: transparent !important; margin-bottom: 2px; }
-    .hg-chat-active { box-shadow: none !important; }
+    .hg-bubble {
+      line-height: 1.45;
+      border-radius: var(--hg-bubble-radius) !important;
+    }
+    .hg-bubble-out {
+      background-color: var(--hg-accent-hover) !important;
+      color: #faf7f0 !important;
+    }
+    .hg-msg-text {
+      font-size: var(--hg-msg-font) !important;
+      line-height: 1.48;
+    }
 
-    .hg-switch { width: 46px; height: 26px; border-radius: 13px; }
-    .hg-switch::after { top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; }
-    .hg-switch[aria-checked="true"]::after { transform: translateX(20px); }
+    .hg-chat-row {
+      border-radius: 10px;
+      border-bottom: 1px solid transparent !important;
+    }
+    .hg-chat-active {
+      background-color: var(--hg-accent-soft) !important;
+      border-left: 2px solid var(--hg-accent) !important;
+      border-radius: 0 10px 10px 0 !important;
+    }
 
-    .custom-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
-    .custom-scroll::-webkit-scrollbar-thumb { border-radius: 4px; }
+    .hg-switch {
+      width: 40px;
+      height: 22px;
+      border-radius: 999px;
+      background: #47443b;
+      transition: background 0.14s ease;
+    }
+    html:not(.dark) .hg-switch {
+      background: #bdb7a6;
+    }
+    .hg-switch::after {
+      top: 3px;
+      left: 3px;
+      width: 16px;
+      height: 16px;
+      border-radius: 999px;
+      transition: transform 0.14s ease;
+    }
+    .hg-switch[aria-checked="true"]::after {
+      transform: translateX(18px);
+    }
 
-    button:focus-visible, a:focus-visible { outline: 2px solid var(--hg-accent); outline-offset: 2px; }
-    input:focus-visible, textarea:focus-visible, select:focus-visible { outline: none; }
-    #hgFab { box-shadow: 0 8px 22px rgba(226, 70, 31, .38); transition: transform .12s ease, background-color .12s ease; }
-    #hgFab:active { transform: scale(.94); }
-    #messageInput { line-height: 1.4; }
-    .hg-sig { height: 3px; }
+    #hgFab {
+      border-radius: 12px !important;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      transition: background-color 0.14s ease;
+    }
+    #hgFab:active {
+      opacity: 0.9;
+    }
+
+    .custom-scroll::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      border-radius: 2px;
+      background: rgba(130, 122, 108, 0.3);
+    }
+
+    button:focus-visible, a:focus-visible {
+      outline: 1.5px solid var(--hg-accent);
+      outline-offset: 2px;
+    }
+    input:focus-visible, textarea:focus-visible, select:focus-visible {
+      outline: none;
+    }
+    #messageInput {
+      line-height: 1.42;
+    }
   </style>
 </head>
 
@@ -363,7 +417,7 @@
       <!-- Активный чат -->
       <div id="activeChatContainer" class="hidden flex-1 flex flex-col h-full min-h-0">
         <!-- Шапка чата -->
-        <header class="h-[68px] px-3 sm:px-5 flex items-center justify-between gap-2 bg-white/95 dark:bg-[#1a1917]/95 backdrop-blur border-b border-slate-200 dark:border-[#2e2b28] flex-shrink-0">
+        <header class="h-[68px] px-3 sm:px-5 flex items-center justify-between gap-2 bg-white/95 dark:bg-[#1a1917]/95 border-b border-slate-200 dark:border-[#2e2b28] flex-shrink-0">
           <div class="flex items-center gap-2.5 min-w-0 flex-1">
             <button id="btnMobileBack" onclick="mobileBackToList()" class="md:hidden w-10 h-10 flex items-center justify-center -ml-1 rounded-2xl hover:bg-slate-100 dark:hover:bg-[#2a2724]">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -458,7 +512,7 @@
                 </svg>
               </button>
               <!-- Мини-меню выбора вложения (как в Telegram) -->
-              <div id="attachMenu" class="hidden absolute bottom-12 left-0 w-52 rounded-2xl bg-white dark:bg-[#211f1d] border border-slate-200 dark:border-[#36322e] shadow-2xl p-1.5 z-30 msg-animate">
+              <div id="attachMenu" class="hidden absolute bottom-12 left-0 w-52 rounded-2xl bg-white dark:bg-[#211f1d] border border-slate-200 dark:border-[#36322e] p-1.5 z-30 msg-animate">
                 <button type="button" onclick="pickAttachMedia()" class="w-full flex items-center gap-3 px-2.5 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-[#2e2b28] active:bg-slate-200 text-sm font-medium text-left transition">
                   <span class="w-8 h-8 rounded-full bg-sky-500/15 text-sky-500 flex items-center justify-center flex-shrink-0">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.5-4.5a2 2 0 012.8 0L16 16m-2-2l1.5-1.5a2 2 0 012.8 0L20 14M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2zM14 9h.01"/></svg>
@@ -476,7 +530,7 @@
             <div class="flex-1 relative">
               <textarea id="messageInput" rows="1" placeholder="Сообщение..." class="w-full max-h-32 resize-none rounded-2xl bg-slate-100 dark:bg-[#262421] text-slate-900 dark:text-slate-100 placeholder-slate-400 px-4 py-3 pr-12 text-[15px] focus:outline-none focus:ring-2 focus:ring-sky-500/50 transition custom-scroll"></textarea>
               <button id="btnEmoji" onclick="toggleEmojiPopover(event)" class="absolute right-2 bottom-1.5 w-9 h-9 flex items-center justify-center rounded-xl hover:bg-slate-200/70 dark:hover:bg-[#36322e] text-slate-500 dark:text-[#8d887c]"><svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0zM8.5 14.5a4.5 4.5 0 007 0M9 9.5h.01M15 9.5h.01"/></svg></button>
-              <div id="emojiPopover" class="hidden absolute bottom-12 right-0 w-64 rounded-2xl bg-white dark:bg-[#211f1d] border border-slate-200 dark:border-[#36322e] shadow-2xl p-2.5 z-30">
+              <div id="emojiPopover" class="hidden absolute bottom-12 right-0 w-64 rounded-2xl bg-white dark:bg-[#211f1d] border border-slate-200 dark:border-[#36322e] p-2.5 z-30">
                 <div id="emojiGrid" class="grid grid-cols-7 gap-1 text-lg"></div>
               </div>
             </div>
@@ -490,7 +544,7 @@
     </main>
 
     <!-- ПРАВАЯ ПАНЕЛЬ ПРОФИЛЯ / ИНФО -->
-    <aside id="rightInfoPanel" class="hidden fixed inset-y-0 right-0 lg:static w-full sm:w-[330px] flex-shrink-0 h-full bg-white dark:bg-[#1a1917] border-l border-slate-200 dark:border-[#2e2b28] z-30 flex-col shadow-2xl lg:shadow-none">
+    <aside id="rightInfoPanel" class="hidden fixed inset-y-0 right-0 lg:static w-full sm:w-[330px] flex-shrink-0 h-full bg-white dark:bg-[#1a1917] border-l border-slate-200 dark:border-[#2e2b28] z-30 flex-col lg:">
       <div class="h-16 px-4 flex items-center justify-between border-b border-slate-200 dark:border-[#2e2b28]">
         <span class="font-semibold text-sm">Профиль</span>
         <button onclick="closeInfoPanel()" class="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-[#2a2724]"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
@@ -499,8 +553,8 @@
     </aside>
 
     <!-- БОКОВОЕ МЕНЮ (DRAWER) -->
-    <div id="drawerOverlay" class="hidden fixed inset-0 bg-black/50 backdrop-blur-[2px] z-40" onclick="closeDrawer()"></div>
-    <div id="mainDrawer" class="fixed inset-y-0 left-0 w-72 max-w-[85vw] bg-white dark:bg-[#1a1917] border-r border-slate-200 dark:border-[#2e2b28] z-50 transform -translate-x-full transition-transform duration-200 flex flex-col shadow-2xl">
+    <div id="drawerOverlay" class="hidden fixed inset-0 bg-black/50 ] z-40" onclick="closeDrawer()"></div>
+    <div id="mainDrawer" class="fixed inset-y-0 left-0 w-72 max-w-[85vw] bg-white dark:bg-[#1a1917] border-r border-slate-200 dark:border-[#2e2b28] z-50 transform -translate-x-full transition-transform duration-200 flex flex-col">
       <div class="p-5 bg-slate-900 dark:bg-[#262421] text-white">
         <div id="drawerAvatar" class="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center text-xl font-bold mb-3"></div>
         <div id="drawerName" class="font-bold text-base flex items-center gap-1.5"></div>
@@ -545,7 +599,7 @@
     </div>
 
     <!-- КОНТЕКСТНОЕ МЕНЮ ЧАТА (ПКМ В СПИСКЕ ЧАТОВ) -->
-    <div id="chatContextMenu" class="hidden fixed z-50 w-56 rounded-2xl bg-white dark:bg-[#211f1d] border border-slate-200 dark:border-[#36322e] shadow-2xl p-1.5">
+    <div id="chatContextMenu" class="hidden fixed z-50 w-56 rounded-2xl bg-white dark:bg-[#211f1d] border border-slate-200 dark:border-[#36322e] p-1.5">
       <div id="chatCtxTitle" class="px-3 py-1.5 text-[11px] font-semibold text-slate-500 dark:text-[#8d887c] truncate border-b border-slate-200/80 dark:border-[#36322e] mb-1"></div>
       <button onclick="ctxChatDelete()" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-red-500/10 text-red-500 text-xs font-semibold text-left">
         <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
@@ -554,7 +608,7 @@
     </div>
 
     <!-- КОНТЕКСТНОЕ МЕНЮ СООБЩЕНИЯ -->
-    <div id="msgContextMenu" class="hidden fixed z-50 w-60 rounded-2xl bg-white dark:bg-[#211f1d] border border-slate-200 dark:border-[#36322e] shadow-2xl p-1.5">
+    <div id="msgContextMenu" class="hidden fixed z-50 w-60 rounded-2xl bg-white dark:bg-[#211f1d] border border-slate-200 dark:border-[#36322e] p-1.5">
       <div class="flex items-center justify-around py-1.5 mb-1 border-b border-slate-200 dark:border-[#36322e]">
         <button onclick="ctxReact('❤️')" class="text-xl hover:scale-125 transition p-1.5">❤️</button>
         <button onclick="ctxReact('🔥')" class="text-xl hover:scale-125 transition p-1.5">🔥</button>
@@ -573,8 +627,8 @@
     <!-- =========================================================
          МОДАЛЬНОЕ ОКНО: НАСТРОЙКИ HYPERCHAT
     ========================================================== -->
-    <div id="settingsModal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
-      <div class="w-full max-w-4xl h-[88vh] max-h-[720px] rounded-3xl bg-white dark:bg-[#1a1917] border border-slate-200 dark:border-[#36322e] shadow-2xl flex flex-col overflow-hidden msg-animate">
+    <div id="settingsModal" class="hidden fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-2 sm:p-4">
+      <div class="w-full max-w-4xl h-[88vh] max-h-[720px] rounded-3xl bg-white dark:bg-[#1a1917] border border-slate-200 dark:border-[#36322e] flex flex-col overflow-hidden msg-animate">
         <!-- Шапка -->
         <div class="px-5 py-4 bg-slate-100 dark:bg-[#262421] border-b border-slate-200 dark:border-[#2e2b28] flex items-center justify-between flex-shrink-0">
           <div class="flex items-center gap-3">
@@ -603,8 +657,8 @@
     </div>
 
     <!-- МОДАЛЬНОЕ ОКНО: АДМИН-ПАНЕЛЬ HYPERCHAT -->
-    <div id="adminModal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
-      <div class="w-full max-w-3xl max-h-[90vh] rounded-3xl bg-white dark:bg-[#1a1917] border border-slate-200 dark:border-[#36322e] shadow-2xl flex flex-col overflow-hidden">
+    <div id="adminModal" class="hidden fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-2 sm:p-4">
+      <div class="w-full max-w-3xl max-h-[90vh] rounded-3xl bg-white dark:bg-[#1a1917] border border-slate-200 dark:border-[#36322e] flex flex-col overflow-hidden">
         <div class="px-5 py-4 bg-slate-100 dark:bg-[#262421] border-b border-slate-200 dark:border-[#2e2b28] flex items-center justify-between">
           <div class="flex items-center gap-3">
             <div class="w-10 h-10 rounded-xl hg-accent-bg flex items-center justify-center text-white font-display font-bold">A</div>
@@ -630,8 +684,8 @@
     <!-- =========================================================
          МОДАЛЬНОЕ ОКНО: СОЗДАНИЕ ЧАТА / КАНАЛА И ВХОД ПО КОДУ
     ========================================================== -->
-    <div id="createChatModal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
-      <div class="w-full max-w-xl max-h-[90vh] rounded-3xl bg-white dark:bg-[#1a1917] border border-slate-200 dark:border-[#36322e] shadow-2xl flex flex-col overflow-hidden msg-animate">
+    <div id="createChatModal" class="hidden fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-2 sm:p-4">
+      <div class="w-full max-w-xl max-h-[90vh] rounded-3xl bg-white dark:bg-[#1a1917] border border-slate-200 dark:border-[#36322e] flex flex-col overflow-hidden msg-animate">
         <div class="px-5 py-4 bg-slate-100 dark:bg-[#262421] border-b border-slate-200 dark:border-[#2e2b28] flex items-center justify-between flex-shrink-0">
           <div class="flex items-center gap-3">
             <div class="w-10 h-10 rounded-xl hg-accent-bg flex items-center justify-center text-white font-display font-extrabold text-xl">+</div>
@@ -654,14 +708,14 @@
     </div>
 
     <!-- БАННЕР ЗАБАНЕННОГО АККАУНТА -->
-    <div id="bannedBanner" class="hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-40 px-4 py-2.5 rounded-xl bg-red-600 text-white text-xs font-bold shadow-2xl flex items-center gap-2">
+    <div id="bannedBanner" class="hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-40 px-4 py-2.5 rounded-xl bg-red-600 text-white text-xs font-bold flex items-center gap-2">
       <span>Ваш аккаунт заблокирован администратором @Hypergram. Вы не можете отправлять сообщения.</span>
     </div>
   </div>
 
     <!-- МОДАЛЬНОЕ ОКНО: ПЕРЕСЫЛКА СООБЩЕНИЯ -->
-    <div id="forwardModal" onclick="closeForwardModal()" class="hidden fixed inset-0 z-[76] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div onclick="event.stopPropagation()" class="w-full max-w-md rounded-3xl bg-white dark:bg-[#1a1917] border border-slate-200 dark:border-[#36322e] shadow-2xl p-5 space-y-3.5 msg-animate">
+    <div id="forwardModal" onclick="closeForwardModal()" class="hidden fixed inset-0 z-[76] bg-black/60 flex items-center justify-center p-4">
+      <div onclick="event.stopPropagation()" class="w-full max-w-md rounded-3xl bg-white dark:bg-[#1a1917] border border-slate-200 dark:border-[#36322e] p-5 space-y-3.5 msg-animate">
         <div class="flex items-center justify-between">
           <h3 class="font-display font-bold text-base">Переслать сообщение</h3>
           <button onclick="closeForwardModal()" class="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-[#2a2724] text-xs text-slate-400"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
@@ -672,8 +726,8 @@
     </div>
 
     <!-- МОДАЛЬНОЕ ОКНО: СОЗДАНИЕ ОПРОСА -->
-    <div id="pollModal" onclick="closePollModal()" class="hidden fixed inset-0 z-[76] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div onclick="event.stopPropagation()" class="w-full max-w-md rounded-3xl bg-white dark:bg-[#1a1917] border border-slate-200 dark:border-[#36322e] shadow-2xl p-5 space-y-3.5 msg-animate">
+    <div id="pollModal" onclick="closePollModal()" class="hidden fixed inset-0 z-[76] bg-black/60 flex items-center justify-center p-4">
+      <div onclick="event.stopPropagation()" class="w-full max-w-md rounded-3xl bg-white dark:bg-[#1a1917] border border-slate-200 dark:border-[#36322e] p-5 space-y-3.5 msg-animate">
         <div class="flex items-center justify-between">
           <h3 class="font-display font-bold text-base">Создать опрос</h3>
           <button onclick="closePollModal()" class="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-[#2a2724] text-xs text-slate-400"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
@@ -698,8 +752,8 @@
     </div>
 
     <!-- КАСТОМНОЕ ОКНО ПОДТВЕРЖДЕНИЯ УДАЛЕНИЯ ЧАТА -->
-  <div id="confirmChatModal" onclick="closeConfirmChatModal()" class="hidden fixed inset-0 z-[75] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-    <div onclick="event.stopPropagation()" class="w-full max-w-sm rounded-3xl bg-white dark:bg-[#1a1917] border border-slate-200 dark:border-[#36322e] shadow-2xl p-5 sm:p-6 space-y-4 msg-animate">
+  <div id="confirmChatModal" onclick="closeConfirmChatModal()" class="hidden fixed inset-0 z-[75] bg-black/60 flex items-center justify-center p-4">
+    <div onclick="event.stopPropagation()" class="w-full max-w-sm rounded-3xl bg-white dark:bg-[#1a1917] border border-slate-200 dark:border-[#36322e] p-5 sm:p-6 space-y-4 msg-animate">
       <div class="flex items-start justify-between gap-3">
         <div>
           <h3 id="confirmChatTitle" class="font-display font-bold text-lg leading-snug">Удалить чат?</h3>
@@ -712,7 +766,7 @@
   </div>
 
   <!-- ПРОСМОТР ФОТО ВО ВЕСЬ ЭКРАН (LIGHTBOX) -->
-  <div id="mediaLightbox" onclick="closeMediaLightbox()" class="hidden fixed inset-0 z-[80] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
+  <div id="mediaLightbox" onclick="closeMediaLightbox()" class="hidden fixed inset-0 z-[80] bg-black/90 flex items-center justify-center p-4">
     <div onclick="event.stopPropagation()" class="relative max-w-4xl max-h-[90vh] flex flex-col items-center gap-3">
       <div class="flex items-center justify-end gap-2 w-full">
         <a id="mediaLightboxDownload" href="#" download="hyperchat-media.jpg" class="px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-semibold transition">Скачать</a>
@@ -2591,7 +2645,7 @@
         success: 'bg-emerald-950/95 border-emerald-500/50 text-emerald-100',
         error: 'bg-red-950/95 border-red-500/50 text-red-100'
       };
-      el.className = `pointer-events-auto px-4 py-3 rounded-2xl border shadow-2xl text-xs font-medium msg-animate ${styles[type] || styles.info}`;
+      el.className = `pointer-events-auto px-4 py-3 rounded-2xl border  text-xs font-medium msg-animate ${styles[type] || styles.info}`;
       el.textContent = text;
       c.appendChild(el);
       setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity 0.25s'; setTimeout(() => el.remove(), 250); }, 3000);
@@ -3715,11 +3769,8 @@
         return `
           <div id="msg_${msg.id}" class="flex items-end gap-2 ${isOut ? 'justify-end' : 'justify-start'} group ${isNewMsg ? 'msg-animate' : ''}" oncontextmenu="openCtxMenu(event, '${msg.id}')" ondblclick="quickReactMsg('${msg.id}')">
             ${showAvatar ? avatarBoxHtml(sender, 'w-9 h-9 rounded-xl text-xs cursor-pointer', `onclick="openUserProfile('${sender.id}')"`) : ''}
-            <div class="hg-bubble relative max-w-[85%] sm:max-w-[65%] px-4 py-2.5 ${isOut
-              ? 'hg-bubble-out'
-              : 'bg-white dark:bg-[#1e1c1a] text-slate-900 dark:text-slate-100 border border-slate-200/70 dark:border-[#2e2b28]'
-            }">
-              <button onclick="openCtxMenu(event, '${msg.id}')" class="opacity-0 group-hover:opacity-100 absolute -top-2 ${isOut ? '-left-7' : '-right-7'} w-6 h-6 rounded-full bg-white dark:bg-[#262421] border border-slate-200 dark:border-[#403b36] text-xs shadow flex items-center justify-center text-slate-700 dark:text-slate-200">⋮</button>
+            <div class="hg-bubble relative max-w-[85%] sm:max-w-[65%] px-4 py-2.5 ${isOut ? 'hg-bubble-out' : 'bg-white dark:bg-[#1e1c1a] text-slate-900 dark:text-slate-100 border border-slate-200/70 dark:border-[#2e2b28]' }">
+              <button onclick="openCtxMenu(event, '${msg.id}')" class="opacity-0 group-hover:opacity-100 absolute -top-2 ${isOut ? '-left-7' : '-right-7'} w-6 h-6 rounded-full bg-white dark:bg-[#262421] border border-slate-200 dark:border-[#403b36] text-xs flex items-center justify-center text-slate-700 dark:text-slate-200">⋮</button>
               ${senderHeader}
               ${msg.forwardedFrom ? `<div class="text-[10px] font-semibold opacity-75 mb-1">${icon('forward', INL_S)}Переслано от ${escapeHtml(msg.forwardedFrom)}</div>` : ''}
               ${replyHtml}
