@@ -25,7 +25,7 @@
       darkMode: 'class',
       theme: { extend: {
         fontFamily: { sans: ['Instrument Sans', 'system-ui', 'sans-serif'], display: ['Bricolage Grotesque', 'Instrument Sans', 'sans-serif'] },
-        borderRadius: { md: '8px', lg: '10px', xl: '14px', '2xl': '18px', '3xl': '24px' },
+        borderRadius: { md: '4px', lg: '6px', xl: '6px', '2xl': '8px', '3xl': '8px' },
         fontSize: { xs: ['13px', '18px'], sm: ['14.5px', '21px'], base: ['16px', '24px'] },
         boxShadow: { sm: 'none', DEFAULT: 'none', md: '0 2px 8px rgba(0,0,0,.18)', lg: '0 6px 18px rgba(0,0,0,.24)', xl: '0 10px 28px rgba(0,0,0,.3)', '2xl': '0 18px 48px rgba(0,0,0,.5)' },
         colors: {
@@ -144,40 +144,71 @@
       background-color: #ffffff;
     }
 
-
-    /* ===== МИНИМАЛИЗМ: ПЛОСКИЕ ПОВЕРХНОСТИ, ЧЁТКИЕ ГРАНИЦЫ, БЕЗ ТЕНЕЙ ===== */
+    /* ===== HYPERCHAT STRICT / DISCIPLINED UI ===== */
     *, *::before, *::after {
       box-: none !important;
       text-: none !important;
     }
 
+    :root {
+      --hg-bubble-radius: 6px;
+    }
+
+    /* Чёткие, аккуратные карточки сообщений без избыточных скруглений */
     .hg-bubble {
-      line-height: 1.45;
-      border-radius: var(--hg-bubble-radius) !important;
+      border-radius: 6px !important;
+      line-height: 1.46;
+      padding: 9px 13px !important;
     }
     .hg-bubble-out {
       background-color: var(--hg-accent-hover) !important;
       color: #faf7f0 !important;
+      border: 1px solid var(--hg-accent) !important;
+    }
+    .hg-bubble:not(.hg-bubble-out) {
+      border: 1px solid rgba(120, 112, 98, 0.22) !important;
     }
     .hg-msg-text {
       font-size: var(--hg-msg-font) !important;
       line-height: 1.48;
     }
 
+    /* Строгий список чатов с чёткими границами и ровной геометрией */
     .hg-chat-row {
-      border-radius: 10px;
-      border-bottom: 1px solid transparent !important;
+      border-radius: 6px !important;
+      border: 1px solid transparent;
+      border-bottom: 1px solid rgba(120, 112, 98, 0.14) !important;
+      margin-bottom: 1px !important;
     }
     .hg-chat-active {
       background-color: var(--hg-accent-soft) !important;
-      border-left: 2px solid var(--hg-accent) !important;
-      border-radius: 0 10px 10px 0 !important;
+      border-color: rgba(226, 70, 31, 0.35) !important;
+      border-left: 3px solid var(--hg-accent) !important;
     }
 
+    /* Компактная прямоугольная кнопка создания */
+    #hgFab {
+      border-radius: 6px !important;
+      width: auto !important;
+      height: 36px !important;
+      padding: 0 14px !important;
+      right: 16px !important;
+      bottom: 76px !important;
+      gap: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.14) !important;
+      font-size: 12.5px !important;
+      font-weight: 600 !important;
+      letter-spacing: 0.01em;
+    }
+    #hgFab::after {
+      content: 'Новый чат';
+    }
+
+    /* Строгий переключатель */
     .hg-switch {
-      width: 40px;
-      height: 22px;
-      border-radius: 999px;
+      width: 38px;
+      height: 20px;
+      border-radius: 3px;
       background: #47443b;
       transition: background 0.14s ease;
     }
@@ -185,33 +216,30 @@
       background: #bdb7a6;
     }
     .hg-switch::after {
-      top: 3px;
-      left: 3px;
+      top: 2px;
+      left: 2px;
       width: 16px;
       height: 16px;
-      border-radius: 999px;
+      border-radius: 2px;
       transition: transform 0.14s ease;
     }
     .hg-switch[aria-checked="true"]::after {
       transform: translateX(18px);
     }
 
-    #hgFab {
-      border-radius: 12px !important;
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      transition: background-color 0.14s ease;
-    }
-    #hgFab:active {
-      opacity: 0.9;
-    }
-
+    /* Тонкий скроллбар */
     .custom-scroll::-webkit-scrollbar {
       width: 5px;
       height: 5px;
     }
     .custom-scroll::-webkit-scrollbar-thumb {
       border-radius: 2px;
-      background: rgba(130, 122, 108, 0.3);
+      background: rgba(130, 122, 108, 0.32);
+    }
+
+    /* Поля ввода и кнопки в едином строгом ритме */
+    #searchInput, #messageInput, #inChatSearchInput {
+      border-radius: 6px !important;
     }
 
     button:focus-visible, a:focus-visible {
@@ -356,7 +384,7 @@
         </div>
 
         <!-- Кнопка Админ-панели (только для Hyperchat) -->
-        <button id="btnHeaderAdmin" onclick="openAdminModal()" class="hidden px-3.5 h-9 rounded-full border hg-accent-border hg-accent-text hover:text-white hover:bg-sky-500 flex items-center transition">
+        <button id="btnHeaderAdmin" onclick="openAdminModal()" class="hidden px-3 h-8 rounded-md border hg-accent-border hg-accent-text hover:text-white hover:bg-sky-500 flex items-center transition">
           <span class="uppercase tracking-wider text-[10px] font-bold">Админ</span>
         </button>
 
@@ -370,7 +398,7 @@
           <svg class="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
           </svg>
-          <input id="searchInput" type="search" name="hg_chat_search" autocomplete="one-time-code" autocorrect="off" autocapitalize="off" spellcheck="false" oninput="renderChatList()" placeholder="Поиск чатов или @username..." class="w-full pl-12 pr-4 py-3 text-sm rounded-2xl bg-slate-100 dark:bg-[#262421] text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/60 transition" />
+          <input id="searchInput" type="search" name="hg_chat_search" autocomplete="one-time-code" autocorrect="off" autocapitalize="off" spellcheck="false" oninput="renderChatList()" placeholder="Поиск чатов или @username..." class="w-full pl-11 pr-4 py-2.5 text-sm rounded-md bg-slate-100 dark:bg-[#262421] border border-slate-200 dark:border-[#36322e] text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-[#e2461f] transition" />
         </div>
       </div>
 
@@ -528,7 +556,7 @@
               </div>
             </div>
             <div class="flex-1 relative">
-              <textarea id="messageInput" rows="1" placeholder="Сообщение..." class="w-full max-h-32 resize-none rounded-2xl bg-slate-100 dark:bg-[#262421] text-slate-900 dark:text-slate-100 placeholder-slate-400 px-4 py-3 pr-12 text-[15px] focus:outline-none focus:ring-2 focus:ring-sky-500/50 transition custom-scroll"></textarea>
+              <textarea id="messageInput" rows="1" placeholder="Сообщение..." class="w-full max-h-32 resize-none rounded-md bg-slate-100 dark:bg-[#262421] border border-slate-200 dark:border-[#36322e] text-slate-900 dark:text-slate-100 placeholder-slate-400 px-3.5 py-2.5 pr-12 text-[15px] focus:outline-none focus:border-[#e2461f] transition custom-scroll"></textarea>
               <button id="btnEmoji" onclick="toggleEmojiPopover(event)" class="absolute right-2 bottom-1.5 w-9 h-9 flex items-center justify-center rounded-xl hover:bg-slate-200/70 dark:hover:bg-[#36322e] text-slate-500 dark:text-[#8d887c]"><svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0zM8.5 14.5a4.5 4.5 0 007 0M9 9.5h.01M15 9.5h.01"/></svg></button>
               <div id="emojiPopover" class="hidden absolute bottom-12 right-0 w-64 rounded-2xl bg-white dark:bg-[#211f1d] border border-slate-200 dark:border-[#36322e] p-2.5 z-30">
                 <div id="emojiGrid" class="grid grid-cols-7 gap-1 text-lg"></div>
@@ -3460,7 +3488,7 @@
           ['channel', 'Каналы']
         ];
         tabsEl.innerHTML = filterItems.map(([k, lbl]) => `
-          <button onclick="setChatFilter('${k}')" class="px-4 py-2 rounded-full text-[13px] font-semibold whitespace-nowrap transition ${chatFilter === k ? 'hg-accent-bg text-white' : 'bg-slate-100 dark:bg-[#262421] text-slate-600 dark:text-[#8d887c] hover:text-slate-900 dark:hover:text-white'}">${lbl}</button>
+          <button onclick="setChatFilter('${k}')" class="px-4 py-2 rounded-md text-xs font-semibold whitespace-nowrap transition ${chatFilter === k ? 'hg-accent-bg text-white' : 'bg-slate-100 dark:bg-[#262421] text-slate-600 dark:text-[#8d887c] hover:text-slate-900 dark:hover:text-white'}">${lbl}</button>
         `).join('');
       }
 
@@ -3770,7 +3798,7 @@
           <div id="msg_${msg.id}" class="flex items-end gap-2 ${isOut ? 'justify-end' : 'justify-start'} group ${isNewMsg ? 'msg-animate' : ''}" oncontextmenu="openCtxMenu(event, '${msg.id}')" ondblclick="quickReactMsg('${msg.id}')">
             ${showAvatar ? avatarBoxHtml(sender, 'w-9 h-9 rounded-xl text-xs cursor-pointer', `onclick="openUserProfile('${sender.id}')"`) : ''}
             <div class="hg-bubble relative max-w-[85%] sm:max-w-[65%] px-4 py-2.5 ${isOut ? 'hg-bubble-out' : 'bg-white dark:bg-[#1e1c1a] text-slate-900 dark:text-slate-100 border border-slate-200/70 dark:border-[#2e2b28]' }">
-              <button onclick="openCtxMenu(event, '${msg.id}')" class="opacity-0 group-hover:opacity-100 absolute -top-2 ${isOut ? '-left-7' : '-right-7'} w-6 h-6 rounded-full bg-white dark:bg-[#262421] border border-slate-200 dark:border-[#403b36] text-xs flex items-center justify-center text-slate-700 dark:text-slate-200">⋮</button>
+              <button onclick="openCtxMenu(event, '${msg.id}')" class="opacity-0 group-hover:opacity-100 absolute -top-2 ${isOut ? '-left-7' : '-right-7'} w-6 h-6 rounded-md bg-white dark:bg-[#262421] border border-slate-200 dark:border-[#403b36] text-xs flex items-center justify-center text-slate-700 dark:text-slate-200">⋮</button>
               ${senderHeader}
               ${msg.forwardedFrom ? `<div class="text-[10px] font-semibold opacity-75 mb-1">${icon('forward', INL_S)}Переслано от ${escapeHtml(msg.forwardedFrom)}</div>` : ''}
               ${replyHtml}
