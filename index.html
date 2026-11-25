@@ -145,39 +145,86 @@
     }
 
 
-    /* ===== МИНИМАЛИЗМ: ПЛОСКИЕ ПОВЕРХНОСТИ, ЧЁТКИЕ ГРАНИЦЫ, БЕЗ ТЕНЕЙ ===== */
+    /* ===== HYPERCHAT STUDIO / EDITORIAL FLAT UI (NON-TELEGRAM) ===== */
     *, *::before, *::after {
       box-: none !important;
       text-: none !important;
     }
 
+    /* Убираем «телеграмные» хвостики пузырей и скруглённые капсулы */
     .hg-bubble {
+      border-radius: 4px !important;
+      border-bottom-left-radius: 4px !important;
+      border-bottom-right-radius: 4px !important;
       line-height: 1.45;
-      border-radius: var(--hg-bubble-radius) !important;
     }
     .hg-bubble-out {
-      background-color: var(--hg-accent-hover) !important;
-      color: #faf7f0 !important;
+      background-color: var(--hg-accent-soft) !important;
+      color: inherit !important;
+      border: 1px solid var(--hg-accent) !important;
+      border-left: 3px solid var(--hg-accent) !important;
     }
+    html.dark .hg-bubble-out {
+      color: #faf7f0 !important;
+      background-color: rgba(226, 70, 31, 0.16) !important;
+    }
+    html:not(.dark) .hg-bubble-out {
+      color: #1a1814 !important;
+      background-color: rgba(226, 70, 31, 0.10) !important;
+    }
+    .hg-bubble-out .text-white\/75 {
+      color: var(--hg-accent) !important;
+      opacity: 0.85;
+    }
+    .hg-bubble-out .hg-sig-sent {
+      background-color: var(--hg-accent) !important;
+      opacity: 0.45;
+    }
+    .hg-bubble-out .hg-sig-read {
+      background-color: var(--hg-accent) !important;
+      opacity: 1;
+    }
+
     .hg-msg-text {
       font-size: var(--hg-msg-font) !important;
       line-height: 1.48;
     }
 
+    /* Строки списка чатов — строгие карточки с чёткой границей */
     .hg-chat-row {
-      border-radius: 10px;
-      border-bottom: 1px solid transparent !important;
+      border-radius: 4px !important;
+      border: 1px solid transparent;
+      border-bottom: 1px solid rgba(120, 112, 98, 0.14) !important;
+      margin-bottom: 0 !important;
     }
     .hg-chat-active {
       background-color: var(--hg-accent-soft) !important;
-      border-left: 2px solid var(--hg-accent) !important;
-      border-radius: 0 10px 10px 0 !important;
+      border-color: var(--hg-accent) !important;
+      border-left: 3px solid var(--hg-accent) !important;
+    }
+
+    /* Вместо плавающего круглого/капсульного FAB — строгая прямоугольная кнопка в панели */
+    #hgFab {
+      border-radius: 4px !important;
+      width: auto !important;
+      height: 36px !important;
+      padding: 0 14px !important;
+      right: 16px !important;
+      bottom: 74px !important;
+      gap: 6px;
+      border: 1px solid var(--hg-accent) !important;
+      font-size: 12px !important;
+      font-weight: 700 !important;
+    }
+    #hgFab::after {
+      content: 'Новый';
+      letter-spacing: 0.02em;
     }
 
     .hg-switch {
-      width: 40px;
-      height: 22px;
-      border-radius: 999px;
+      width: 38px;
+      height: 20px;
+      border-radius: 2px;
       background: #47443b;
       transition: background 0.14s ease;
     }
@@ -185,24 +232,15 @@
       background: #bdb7a6;
     }
     .hg-switch::after {
-      top: 3px;
-      left: 3px;
+      top: 2px;
+      left: 2px;
       width: 16px;
       height: 16px;
-      border-radius: 999px;
+      border-radius: 1px;
       transition: transform 0.14s ease;
     }
     .hg-switch[aria-checked="true"]::after {
       transform: translateX(18px);
-    }
-
-    #hgFab {
-      border-radius: 12px !important;
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      transition: background-color 0.14s ease;
-    }
-    #hgFab:active {
-      opacity: 0.9;
     }
 
     .custom-scroll::-webkit-scrollbar {
@@ -210,8 +248,8 @@
       height: 5px;
     }
     .custom-scroll::-webkit-scrollbar-thumb {
-      border-radius: 2px;
-      background: rgba(130, 122, 108, 0.3);
+      border-radius: 0;
+      background: rgba(130, 122, 108, 0.32);
     }
 
     button:focus-visible, a:focus-visible {
@@ -3460,7 +3498,7 @@
           ['channel', 'Каналы']
         ];
         tabsEl.innerHTML = filterItems.map(([k, lbl]) => `
-          <button onclick="setChatFilter('${k}')" class="px-4 py-2 rounded-full text-[13px] font-semibold whitespace-nowrap transition ${chatFilter === k ? 'hg-accent-bg text-white' : 'bg-slate-100 dark:bg-[#262421] text-slate-600 dark:text-[#8d887c] hover:text-slate-900 dark:hover:text-white'}">${lbl}</button>
+          <button onclick="setChatFilter('${k}')" class="px-4 py-2 rounded-md text-xs font-semibold whitespace-nowrap transition ${chatFilter === k ? 'hg-accent-bg text-white' : 'bg-slate-100 dark:bg-[#262421] text-slate-600 dark:text-[#8d887c] hover:text-slate-900 dark:hover:text-white'}">${lbl}</button>
         `).join('');
       }
 
