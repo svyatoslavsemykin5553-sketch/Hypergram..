@@ -25,7 +25,7 @@
       darkMode: 'class',
       theme: { extend: {
         fontFamily: { sans: ['Instrument Sans', 'system-ui', 'sans-serif'], display: ['Bricolage Grotesque', 'Instrument Sans', 'sans-serif'] },
-        borderRadius: { md: '8px', lg: '10px', xl: '14px', '2xl': '18px', '3xl': '24px' },
+        borderRadius: { md: '3px', lg: '4px', xl: '6px', '2xl': '8px', '3xl': '10px' },
         fontSize: { xs: ['13px', '18px'], sm: ['14.5px', '21px'], base: ['16px', '24px'] },
         boxShadow: { sm: 'none', DEFAULT: 'none', md: '0 2px 8px rgba(0,0,0,.18)', lg: '0 6px 18px rgba(0,0,0,.24)', xl: '0 10px 28px rgba(0,0,0,.3)', '2xl': '0 18px 48px rgba(0,0,0,.5)' },
         colors: {
@@ -170,6 +170,42 @@
     #hgFab:active { transform: scale(.94); }
     #messageInput { line-height: 1.4; }
     .hg-sig { height: 3px; }
+
+    /* ===== EMBER v3 «Срез»: фирменные срезанные углы ===== */
+    :root { --cut: var(--hg-bubble-radius); --hg-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace; }
+
+    /* Пузыри: фон рисуется псевдоэлементом, чтобы срез не обрезал кнопки и реакции */
+    .hg-bubble { position: relative; background: transparent !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; isolation: isolate; }
+    .hg-bubble::before { content: ''; position: absolute; inset: 0; z-index: -1; background: #ffffff; box-shadow: none; }
+    html.dark .hg-bubble::before { background: #262421; }
+    .hg-bubble:not(.hg-bubble-out)::before { clip-path: polygon(0 0, 100% 0, 100% 100%, var(--cut) 100%, 0 calc(100% - var(--cut))); }
+    .hg-bubble-out::before { background: var(--hg-accent-hover) !important; clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%); }
+
+    /* Аватары: срез верхнего правого угла */
+    .hg-av { border-radius: 0 !important; clip-path: polygon(0 0, 72% 0, 100% 28%, 100% 100%, 0 100%); }
+
+    /* Кнопки со срезом */
+    .hg-cut-btn { border-radius: 0 !important; clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%); }
+    .hg-cut-send { border-radius: 0 !important; clip-path: polygon(0 0, 100% 0, 100% 100%, 30% 100%, 0 70%); }
+
+    /* Список чатов: карточки со срезом */
+    .hg-chat-row { border-radius: 0 !important; clip-path: polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%); margin-bottom: 4px; }
+    html.dark .hg-chat-row:not(.hg-chat-active) { background-color: #1f1d1b !important; }
+    html.dark .hg-chat-row:not(.hg-chat-active):hover { background-color: #282522 !important; }
+    html:not(.dark) .hg-chat-row:not(.hg-chat-active) { background-color: #f3efe8 !important; }
+    html:not(.dark) .hg-chat-row:not(.hg-chat-active):hover { background-color: #ebe5da !important; }
+    .hg-chat-active { background-color: var(--hg-accent-soft) !important; box-shadow: inset 3px 0 0 var(--hg-accent) !important; }
+
+    /* Моно-шрифт для времени и служебных подписей */
+    .hg-chat-row span.text-\[10px\], .hg-bubble div.text-\[10px\], #chatHeaderStatus, #sidebarUserSubtitle { font-family: var(--hg-mono); letter-spacing: 0; }
+
+    /* Вкладки фильтров */
+    #chatFilterTabs { scrollbar-width: none; }
+    #chatFilterTabs::-webkit-scrollbar { display: none; }
+
+    /* Прочее */
+    .hg-logo-mark { filter: drop-shadow(0 0 10px rgba(226, 70, 31, .35)); }
+    #messageInput { border-radius: 6px; }
   </style>
 </head>
 
@@ -294,17 +330,19 @@
           </svg>
         </button>
 
-        <div class="flex items-center gap-2 flex-1 min-w-0">
+        <div class="flex items-center gap-2.5 flex-1 min-w-0">
+          <svg class="hg-logo-mark w-9 h-9 flex-shrink-0" viewBox="0 0 32 32" aria-hidden="true"><path d="M2 2h22l6 6v22H8l-6-6z" fill="var(--hg-accent)"/><path d="M17.5 7l-7 10h4.5l-1.5 8 7.5-11h-4.5z" fill="#fff"/></svg>
           <div class="truncate">
             <div class="font-display font-extrabold text-2xl leading-none">hyperchat<span class="hg-accent-text">.</span></div>
-            <div id="sidebarUserSubtitle" class="text-[11px] text-slate-500 dark:text-[#8d887c] truncate mt-1"></div>
+            <div id="sidebarUserSubtitle" class="text-[11px] text-slate-500 dark:text-[#8d887c] truncate mt-1.5"></div>
           </div>
         </div>
 
         <!-- Кнопка Админ-панели (только для Hyperchat) -->
-        <button id="btnHeaderAdmin" onclick="openAdminModal()" class="hidden px-3.5 h-9 rounded-full border hg-accent-border hg-accent-text hover:text-white hover:bg-sky-500 flex items-center transition">
+        <button id="btnHeaderAdmin" onclick="openAdminModal()" class="hidden px-3 h-10 rounded-md border hg-accent-border hg-accent-text hover:text-white hover:bg-sky-500 flex items-center transition">
           <span class="uppercase tracking-wider text-[10px] font-bold">Админ</span>
         </button>
+        <button onclick="openCreateChatModal()" title="Создать чат или канал" aria-label="Создать чат или канал" class="hg-cut-btn h-10 pl-3 pr-4 hg-accent-bg text-white text-sm font-bold flex items-center gap-1.5 flex-shrink-0 transition active:translate-y-px"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Новый</span></button>
 
 
 
@@ -321,21 +359,17 @@
       </div>
 
       <!-- Вкладки фильтрации чатов -->
-      <div id="chatFilterTabs" class="px-4 pb-3 flex items-center gap-2 overflow-x-auto custom-scroll"></div>
+      <div id="chatFilterTabs" class="px-4 flex items-center gap-6 overflow-x-auto border-b border-slate-200 dark:border-[#2e2b28]"></div>
 
       <!-- Список чатов + результаты поиска пользователей и каналов -->
-      <div id="chatList" class="flex-1 overflow-y-auto custom-scroll px-2 pb-24 pt-1 space-y-0.5"></div>
+      <div id="chatList" class="flex-1 overflow-y-auto custom-scroll px-3 pb-4 pt-3 space-y-0"></div>
 
-      <!-- Плавающая кнопка: создать чат или канал -->
-      <button id="hgFab" onclick="openCreateChatModal()" title="Создать чат или канал" aria-label="Создать чат или канал" class="absolute right-5 bottom-24 w-14 h-14 rounded-2xl hg-accent-bg text-white flex items-center justify-center z-10">
-        <svg class="w-7 h-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-      </button>
 
       <!-- Нижняя панель профиля -->
       <div class="px-3 py-3 border-t border-slate-200 dark:border-[#2e2b28] flex items-center justify-between gap-2 bg-slate-50/70 dark:bg-[#161513]">
         <div onclick="openSettingsModal('profile')" title="Редактировать профиль" class="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer p-1 rounded-xl hover:bg-slate-200/60 dark:hover:bg-[#2a2724] transition">
           <div class="relative flex-shrink-0">
-            <div id="bottomUserAvatar" class="w-11 h-11 rounded-2xl flex items-center justify-center text-sm font-bold text-white"></div>
+            <div id="bottomUserAvatar" class="hg-av w-11 h-11 rounded-2xl flex items-center justify-center text-sm font-bold text-white"></div>
             <span id="bottomStatusDot" class="w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white dark:border-[#161513] absolute -bottom-0.5 -right-0.5"></span>
           </div>
           <div class="min-w-0 flex-1">
@@ -371,7 +405,7 @@
               </svg>
             </button>
             <div onclick="openChatInfoPanel()" class="flex items-center gap-3 min-w-0 flex-1 cursor-pointer group">
-              <div id="chatHeaderAvatar" class="w-11 h-11 rounded-2xl flex items-center justify-center font-bold text-white text-sm flex-shrink-0"></div>
+              <div id="chatHeaderAvatar" class="hg-av w-11 h-11 rounded-2xl flex items-center justify-center font-bold text-white text-sm flex-shrink-0"></div>
               <div class="min-w-0 flex-1">
                 <div id="chatHeaderTitle" class="font-semibold text-base truncate flex items-center gap-1.5 group-hover:opacity-80 transition"></div>
                 <div id="chatHeaderStatus" class="text-xs text-slate-500 dark:text-[#8d887c] truncate"></div>
@@ -481,7 +515,7 @@
               </div>
             </div>
             <button id="btnVoiceRecord" type="button" onclick="toggleVoiceRecording()" title="Голосовое сообщение" class="w-11 h-11 rounded-2xl bg-slate-100 dark:bg-[#262421] hover:bg-slate-200 dark:hover:bg-[#322f2b] text-slate-600 dark:text-slate-300 flex items-center justify-center transition flex-shrink-0"></button>
-            <button onclick="sendMessage()" class="w-11 h-11 rounded-2xl hg-accent-bg text-white flex items-center justify-center transition active:translate-y-px flex-shrink-0">
+            <button onclick="sendMessage()" class="hg-cut-send w-11 h-11 hg-accent-bg text-white flex items-center justify-center transition active:translate-y-px flex-shrink-0">
               <svg class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
             </button>
           </div>
@@ -502,7 +536,7 @@
     <div id="drawerOverlay" class="hidden fixed inset-0 bg-black/50 backdrop-blur-[2px] z-40" onclick="closeDrawer()"></div>
     <div id="mainDrawer" class="fixed inset-y-0 left-0 w-72 max-w-[85vw] bg-white dark:bg-[#1a1917] border-r border-slate-200 dark:border-[#2e2b28] z-50 transform -translate-x-full transition-transform duration-200 flex flex-col shadow-2xl">
       <div class="p-5 bg-slate-900 dark:bg-[#262421] text-white">
-        <div id="drawerAvatar" class="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center text-xl font-bold mb-3"></div>
+        <div id="drawerAvatar" class="hg-av w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center text-xl font-bold mb-3"></div>
         <div id="drawerName" class="font-bold text-base flex items-center gap-1.5"></div>
         <div id="drawerUsername" class="text-xs text-sky-100/90 mt-0.5"></div>
         <div id="drawerTitle" class="text-[11px] text-sky-200/80 mt-1"></div>
@@ -866,7 +900,7 @@
       accent: 'terracotta',
       wallpaper: 'lines',
       fontSize: 15,
-      bubbleRadius: 18,
+      bubbleRadius: 10,
       compactMode: false,
       reduceMotion: false,
       sendOnEnter: true,
@@ -2065,6 +2099,7 @@
     if (!Array.isArray(settings.blockedUsers)) settings.blockedUsers = [];
     if (!Array.isArray(settings.hiddenChats)) settings.hiddenChats = [];
     if (!Array.isArray(settings.mutedChats)) settings.mutedChats = [];
+    if (!settings.designV3) { settings.designV3 = true; settings.bubbleRadius = 10; }
     if (!settings.designV2) { settings.designV2 = true; settings.bubbleRadius = 18; if (!settings.fontSize || settings.fontSize <= 14) settings.fontSize = 15; }
 
     let settingsSyncTimer = null;
@@ -2528,7 +2563,7 @@
     function avatarBoxHtml(entity, sizeClasses, extraAttrs = '') {
       const hasImg = !!(entity?.avatarUrl && /^(data:image\/|https?:\/\/)/i.test(entity.avatarUrl));
       const bg = hasImg ? 'bg-slate-800' : `bg-gradient-to-tr ${entity?.avatarColor || 'from-slate-500 to-slate-600'}`;
-      return `<div ${extraAttrs} class="${sizeClasses} overflow-hidden ${bg} flex items-center justify-center font-bold text-white flex-shrink-0">${avatarContent(entity?.avatarUrl, entity?.initials)}</div>`;
+      return `<div ${extraAttrs} class="hg-av ${sizeClasses} overflow-hidden ${bg} flex items-center justify-center font-bold text-white flex-shrink-0">${avatarContent(entity?.avatarUrl, entity?.initials)}</div>`;
     }
 
 
@@ -3406,7 +3441,7 @@
           ['channel', 'Каналы']
         ];
         tabsEl.innerHTML = filterItems.map(([k, lbl]) => `
-          <button onclick="setChatFilter('${k}')" class="px-4 py-2 rounded-full text-[13px] font-semibold whitespace-nowrap transition ${chatFilter === k ? 'hg-accent-bg text-white' : 'bg-slate-100 dark:bg-[#262421] text-slate-600 dark:text-[#8d887c] hover:text-slate-900 dark:hover:text-white'}">${lbl}</button>
+          <button onclick="setChatFilter('${k}')" class="pt-1 pb-2.5 -mb-px text-[13px] font-semibold whitespace-nowrap transition border-b-2 ${chatFilter === k ? 'hg-accent-border text-slate-900 dark:text-white' : 'border-transparent text-slate-500 dark:text-[#8d887c] hover:text-slate-900 dark:hover:text-white'}">${lbl}</button>
         `).join('');
       }
 
@@ -3462,12 +3497,12 @@
 
         const unread = getUnreadCount(c.id);
         const unreadBadgeHtml = unread > 0
-          ? `<span class="hg-accent-bg text-white text-[10px] font-bold min-w-[22px] h-[22px] px-1.5 rounded-full flex items-center justify-center flex-shrink-0">${unread > 99 ? '99+' : unread}</span>`
+          ? `<span class="hg-accent-bg text-white text-[10px] font-bold min-w-[22px] h-[22px] px-1.5 rounded-sm font-mono flex items-center justify-center flex-shrink-0">${unread > 99 ? '99+' : unread}</span>`
           : '';
 
         return `
           <div onclick="selectChat('${c.id}')" oncontextmenu="openChatCtxMenu(event, '${c.id}')" class="hg-chat-row group relative flex items-center gap-3.5 px-3 py-3 cursor-pointer transition border-b border-slate-200/80 dark:border-[#2e2b28] ${active ? 'hg-chat-active' : 'hover:bg-slate-100 dark:hover:bg-[#2a2724]'}">
-            ${avatarBoxHtml(meta, 'w-[52px] h-[52px] rounded-2xl text-base')}
+            ${avatarBoxHtml(meta, 'w-[50px] h-[50px] text-base')}
             <div class="min-w-0 flex-1">
               <div class="flex items-center justify-between gap-1.5">
                 <div class="font-semibold text-[15px] truncate flex items-center gap-1">${escapeHtml(meta.title)}${renderBadges(meta.badges, true)}${mutedBadge}${typeTag}</div>
@@ -3717,7 +3752,7 @@
             ${showAvatar ? avatarBoxHtml(sender, 'w-9 h-9 rounded-xl text-xs cursor-pointer', `onclick="openUserProfile('${sender.id}')"`) : ''}
             <div class="hg-bubble relative max-w-[85%] sm:max-w-[65%] px-4 py-2.5 ${isOut
               ? 'hg-bubble-out'
-              : 'bg-white dark:bg-[#1e1c1a] text-slate-900 dark:text-slate-100 border border-slate-200/70 dark:border-[#2e2b28]'
+              : 'text-slate-900 dark:text-slate-100'
             }">
               <button onclick="openCtxMenu(event, '${msg.id}')" class="opacity-0 group-hover:opacity-100 absolute -top-2 ${isOut ? '-left-7' : '-right-7'} w-6 h-6 rounded-full bg-white dark:bg-[#262421] border border-slate-200 dark:border-[#403b36] text-xs shadow flex items-center justify-center text-slate-700 dark:text-slate-200">⋮</button>
               ${senderHeader}
@@ -4802,7 +4837,7 @@
             <!-- Превью чата -->
             <div class="p-4 rounded-2xl border border-slate-200 dark:border-[#36322e] ${settings.theme === 'dark' ? 'chat-wallpaper-dark' : 'chat-wallpaper-light'} wp-${settings.wallpaper} space-y-2">
               <div class="flex justify-start">
-                <div class="hg-bubble px-3 py-1.5 bg-white dark:bg-[#1e1c1a] text-slate-900 dark:text-slate-100 border border-slate-200/70 dark:border-[#2e2b28] max-w-[75%]">
+                <div class="hg-bubble px-3 py-1.5 text-slate-900 dark:text-slate-100 max-w-[75%]">
                   <div class="hg-msg-text">Привет! Как тебе обновлённый HYPERCHAT?</div>
                 </div>
               </div>
@@ -4866,10 +4901,10 @@
 
               <div class="p-3.5 rounded-2xl bg-slate-100/80 dark:bg-[#262421] border border-slate-200 dark:border-[#36322e]">
                 <div class="flex justify-between text-xs font-semibold mb-2">
-                  <span>Скругление пузырей</span>
+                  <span>Срез углов пузырей</span>
                   <span class="hg-accent-text">${settings.bubbleRadius} px</span>
                 </div>
-                <input type="range" min="0" max="24" step="2" value="${settings.bubbleRadius}" oninput="setSetting('bubbleRadius', Number(this.value))" class="w-full accent-[#e2461f]" />
+                <input type="range" min="0" max="20" step="2" value="${settings.bubbleRadius}" oninput="setSetting('bubbleRadius', Number(this.value))" class="w-full accent-[#e2461f]" />
               </div>
             </div>
 
