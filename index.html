@@ -5486,5 +5486,199 @@
     setTimeout(() => { if (!currentUserId) hideSessionLoader(true); }, 12000);
     initBackend();
   </script>
+<style id="dcTheme">:root{--hg-accent:#5865f2;--hg-accent-hover:#4752c4;--hg-accent-soft:rgba(88,101,242,.16);--hg-bubble-radius:4px;
+--dc-1:#1e1f22;--dc-2:#2b2d31;--dc-3:#313338;--dc-4:#383a40;--dc-t:#dbdee1;--dc-m:#949ba4;--dc-line:#1e1f22}
+body.dc-ash{--dc-1:#1a1a1e;--dc-2:#242429;--dc-3:#2c2c32;--dc-4:#35353c}
+body.dc-onyx{--dc-1:#000;--dc-2:#0a0a0a;--dc-3:#111;--dc-4:#1b1b1b;--dc-line:#000}
+body.dc-light{--dc-1:#e3e5e8;--dc-2:#f2f3f5;--dc-3:#fff;--dc-4:#ebedef;--dc-t:#313338;--dc-m:#5c5e66;--dc-line:#e3e5e8}
+html,body{font-family:'Inter','gg sans',system-ui,sans-serif!important;background:var(--dc-1)!important;color:var(--dc-t)}
+.font-display{font-family:'Inter',system-ui,sans-serif!important;letter-spacing:-.02em;font-weight:800}
+#app{background:var(--dc-3)!important;color:var(--dc-t)}
+#leftSidebar{background:var(--dc-2)!important;border-color:var(--dc-line)!important;width:300px!important}
+@media(max-width:767px){#leftSidebar{width:100%!important}}
+#chatArea,#activeChatContainer,#emptyChatState,#messagesContainer,.chat-wallpaper-dark,.chat-wallpaper-light{background:var(--dc-3)!important;background-image:none!important}
+[class*="bg-[#1a1917]"],[class*="bg-[#161513]"],[class*="bg-[#121110]"],[class*="bg-[#151412]"]{background:var(--dc-2)!important}
+#leftSidebar>div:last-child{background:var(--dc-1)!important;border:0!important}
+[class*="border-[#2e2b28]"],[class*="border-slate-200"]{border-color:var(--dc-line)!important}
+[class*="bg-[#2a2724]"],[class*="bg-[#22201e]"],[class*="bg-[#2e2b28]"]{background:var(--dc-4)!important}
+[class*="hover:bg-[#2a2724]"]:hover{background:var(--dc-4)!important}
+[class*="text-[#8d887c]"],.text-slate-500,.text-slate-400{color:var(--dc-m)!important}
+*{border-radius:6px;clip-path:none!important}
+.rounded-full,#dcRail *{border-radius:999px}
+input,textarea{background:var(--dc-1)!important;color:var(--dc-t)!important;border:0!important;border-radius:6px!important}
+#messageInput{background:var(--dc-4)!important;border-radius:8px!important}
+#chatList>*{border-radius:6px!important}
+.hg-chat-active{background:var(--dc-4)!important;box-shadow:none!important;color:#fff}
+.hg-bubble,.hg-bubble-out{background:transparent!important;color:var(--dc-t)!important;border-radius:4px!important}
+.hg-bubble:hover{background:rgba(4,4,5,.07)!important}
+#settingsModal>div,#createChatModal>div,#mainDrawer,#adminModal>div,#forwardModal>div,#pollModal>div{background:var(--dc-2)!important;color:var(--dc-t)!important}
+#dcRail{width:72px;flex:none;background:var(--dc-1);display:flex;flex-direction:column;align-items:center;gap:8px;padding:12px 0;z-index:30}
+@media(max-width:767px){#dcRail{display:none}}
+.dcb{width:48px;height:48px;background:var(--dc-3);color:var(--dc-t);display:flex;align-items:center;justify-content:center;cursor:pointer;border:0;font-weight:700;font-size:15px;position:relative;transition:.15s;border-radius:50%!important;overflow:hidden}
+.dcb:hover,.dcb.on{background:var(--hg-accent);color:#fff;border-radius:16px!important}
+.dcb.on::before{content:"";position:absolute;left:0}
+.dcpill{position:absolute;left:0;width:4px;height:40px;background:#fff;border-radius:0 4px 4px 0!important}
+.dcsep{width:32px;height:2px;background:var(--dc-4)}
+.dcadd{background:var(--dc-3);color:#23a559;border:1px dashed #23a559}
+.dcm{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;display:flex;align-items:center;justify-content:center}
+.dcc{background:var(--dc-2);color:var(--dc-t);width:min(760px,96vw);max-height:90vh;overflow:auto;border-radius:8px!important}
+.dcbanner{height:120px;background:var(--hg-accent) center/cover}
+.dcrow{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:8px 0}
+.dcbtn{background:var(--hg-accent);color:#fff;padding:8px 14px;border:0;cursor:pointer;font-weight:600;font-size:13px}
+.dcbtn.g{background:var(--dc-4)}.dcbtn.r{background:#da373c}
+.dcsw{width:32px;height:32px;cursor:pointer;border:2px solid transparent;border-radius:50%!important}
+#dcCall{position:fixed;inset:0;background:#000;z-index:300;display:flex;flex-direction:column}
+#dcGrid{flex:1;display:grid;gap:8px;padding:12px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));align-content:center}
+.dct{background:var(--dc-2);aspect-ratio:16/9;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;border-radius:8px!important}
+.dct video{width:100%;height:100%;object-fit:contain;background:#000}
+.dct b{position:absolute;left:8px;bottom:8px;background:rgba(0,0,0,.6);color:#fff;padding:2px 8px;font-size:12px}
+#dcBar{display:flex;justify-content:center;gap:12px;padding:14px;background:var(--dc-1)}
+#dcBar .dcb{width:52px;height:52px;background:var(--dc-4)}
+#dcBar .dcb.off{background:#fff;color:#000}
+</style>
+<script id="dcAddon">(function(){
+const LS=localStorage,K='dc_accounts',S='hypergram_session_v1',P='dc_prefs';
+const J=(k,d)=>{try{return JSON.parse(LS.getItem(k))||d}catch(e){return d}};
+const prefs=Object.assign({theme:'',accent:'#5865f2',font:15,compact:false},J(P,{}));
+const $=s=>document.querySelector(s),el=(h)=>{const d=document.createElement('div');d.innerHTML=h.trim();return d.firstChild};
+const IC={home:'<path d="M3 11l9-8 9 8v9a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1z"/>',gear:'<circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 00-.1-1.2l2-1.5-2-3.4-2.4 1a7 7 0 00-2-1.2L14 3h-4l-.4 2.7a7 7 0 00-2 1.2l-2.4-1-2 3.4 2 1.5a7 7 0 000 2.4l-2 1.5 2 3.4 2.4-1a7 7 0 002 1.2L10 21h4l.4-2.7a7 7 0 002-1.2l2.4 1 2-3.4-2-1.5c.1-.4.2-.8.2-1.2z"/>',plus:'<path d="M12 5v14M5 12h14"/>',cam:'<path d="M3 7h12v10H3zM15 11l6-3v8l-6-3"/>',mic:'<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/>',scr:'<rect x="3" y="4" width="18" height="12"/><path d="M8 20h8M12 16v4"/>',end:'<path d="M3 15c5-5 13-5 18 0l-3 3-3-2v-2a10 10 0 00-6 0v2l-3 2z"/>'};
+const svg=n=>`<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${IC[n]}</svg>`;
+function applyPrefs(){
+  document.body.classList.remove('dc-ash','dc-onyx','dc-light');
+  if(prefs.theme)document.body.classList.add('dc-'+prefs.theme);
+  document.documentElement.style.setProperty('--hg-accent',prefs.accent);
+  document.documentElement.style.setProperty('--hg-accent-hover',prefs.accent+'cc');
+  document.documentElement.style.setProperty('--hg-accent-soft',prefs.accent+'29');
+  document.documentElement.style.setProperty('--hg-msg-font',prefs.font+'px');
+  document.body.classList.toggle('hg-compact',!!prefs.compact);
+  LS.setItem(P,JSON.stringify(prefs));
+}
+const uid=()=>(J(S,null)||{}).userId;
+const bannerKey=u=>'dc_banner_'+u;
+
+function track(){
+  const u=uid(),n=$('#bottomUserName'),a=$('#bottomUserAvatar');
+  if(!u||!n||!n.textContent.trim())return;
+  let list=J(K,[]);const name=n.textContent.trim(),h=($('#bottomUserHandle')||{}).textContent||'';
+  const bg=a?getComputedStyle(a).backgroundColor:'#5865f2',img=a&&a.querySelector('img')?a.querySelector('img').src:'';
+  const rec={userId:u,name,handle:h,bg,img,ini:name.slice(0,2).toUpperCase()};
+  const i=list.findIndex(x=>x.userId===u);
+  if(i>=0)list[i]=rec;else if(list.length<3)list.push(rec);else return;
+  LS.setItem(K,JSON.stringify(list));renderRail();
+}
+function avatarHtml(r){return r.img?`<img src="${r.img}" style="width:100%;height:100%;object-fit:cover">`:`<span style="background:${r.bg};width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#fff">${r.ini}</span>`}
+function switchTo(id){
+  const s=J(S,{})||{};if(s.userId===id)return;
+  const v=JSON.stringify({userId:id,loginAt:Date.now(),lastSeen:Date.now()});
+  LS.setItem(S,v);try{sessionStorage.setItem(S,v)}catch(e){}
+  LS.setItem('hypergram_last_login_v1',id);location.reload();
+}
+function addAccount(){
+  if(J(K,[]).length>=3)return alert('Максимум 3 аккаунта');
+  if(!confirm('Откроется экран входа. Войдите во второй аккаунт — он появится в левой панели.'))return;
+  const u=uid();LS.setItem('dc_pending_add','1');
+  if(window.logout)window.logout();
+  const list=J(K,[]);if(!list.find(x=>x.userId===u))return;
+}
+function removeAccount(id){
+  if(id===uid())return alert('Нельзя убрать активный аккаунт — сначала переключитесь.');
+  LS.setItem(K,JSON.stringify(J(K,[]).filter(x=>x.userId!==id)));renderRail();
+}
+function renderRail(){
+  let r=$('#dcRail');if(!r){r=el('<nav id="dcRail"></nav>');$('#app').prepend(r)}
+  const list=J(K,[]),cur=uid();
+  r.innerHTML='<button class="dcb on" title="Главная" id="dcHome"><span class="dcpill"></span>'+svg('home')+'</button><div class="dcsep"></div>';
+  list.forEach(a=>{
+    const b=el(`<button class="dcb ${a.userId===cur?'on':''}" title="${a.name} ${a.handle} (ПКМ — убрать)">${a.userId===cur?'<span class="dcpill"></span>':''}${avatarHtml(a)}</button>`);
+    b.onclick=()=>switchTo(a.userId);
+    b.oncontextmenu=e=>{e.preventDefault();if(confirm('Убрать '+a.name+' из быстрого переключения?'))removeAccount(a.userId)};
+    r.appendChild(b);
+  });
+  if(list.length<3){const b=el('<button class="dcb dcadd" title="Добавить аккаунт">'+svg('plus')+'</button>');b.onclick=addAccount;r.appendChild(b)}
+  const sp=el('<div style="flex:1"></div>');r.appendChild(sp);
+  const g=el('<button class="dcb" title="Настройки Discord-стиля">'+svg('gear')+'</button>');g.onclick=openDc;r.appendChild(g);
+  $('#dcHome').onclick=()=>{const b=$('#btnMobileBack');if(b)b.click()};
+}
+function modal(html){
+  const m=el('<div class="dcm"><div class="dcc">'+html+'</div></div>');
+  m.onclick=e=>{if(e.target===m)m.remove()};document.body.appendChild(m);return m;
+}
+function profileCard(){
+  const n=($('#chatHeaderTitle')||{}).textContent||'',st=($('#chatHeaderStatus')||{}).textContent||'';
+  const av=$('#chatHeaderAvatar'),u=uid(),bn=LS.getItem(bannerKey(u))||'';
+  const m=modal(`<div class="dcbanner" style="${bn.startsWith('data:')?`background-image:url(${bn})`:bn?`background:${bn}`:''}"></div>
+  <div style="padding:0 20px 20px"><div style="width:84px;height:84px;margin-top:-42px;border:6px solid var(--dc-2);overflow:hidden;border-radius:50%" id="dcPAv"></div>
+  <h2 style="font-size:20px;font-weight:800;margin-top:8px">${n}</h2><div style="color:var(--dc-m);font-size:13px">${st}</div>
+  <div class="dcrow"><button class="dcbtn" id="dcMsg">Сообщение</button><button class="dcbtn g" id="dcCallBtn">Звонок</button></div></div>`);
+  if(av)m.querySelector('#dcPAv').appendChild(av.cloneNode(true));
+  m.querySelector('#dcMsg').onclick=()=>m.remove();
+  m.querySelector('#dcCallBtn').onclick=()=>{m.remove();startCall()};
+}
+function openDc(){
+  const u=uid(),cols=['#5865f2','#eb459e','#23a559','#f0b132','#da373c','#00a8fc','#9b59b6'];
+  const m=modal(`<div style="padding:20px"><h2 style="font-size:20px;font-weight:800">Настройки</h2>
+  <h3 class="dcl">Тема</h3><div class="dcrow" id="dcT"></div>
+  <h3 class="dcl">Акцентный цвет</h3><div class="dcrow" id="dcA"></div><div class="dcrow"><input type="color" id="dcAc" value="${prefs.accent}" style="width:48px;height:32px;padding:0"></div>
+  <h3 class="dcl">Размер текста сообщений: <span id="dcFv">${prefs.font}</span>px</h3><input type="range" min="12" max="20" value="${prefs.font}" id="dcF" style="width:100%">
+  <label class="dcrow"><input type="checkbox" id="dcC" ${prefs.compact?'checked':''}> Компактный режим</label>
+  <h3 class="dcl">Баннер профиля</h3><div class="dcbanner" id="dcBp" style="border-radius:8px"></div>
+  <div class="dcrow" id="dcBc"></div><div class="dcrow"><button class="dcbtn g" id="dcBu">Загрузить картинку</button><button class="dcbtn g" id="dcBr">Сбросить</button><input type="file" accept="image/*" id="dcBf" hidden></div>
+  <p style="font-size:12px;color:var(--dc-m)">Баннер пока хранится на этом устройстве.</p>
+  <div class="dcrow"><button class="dcbtn" id="dcPrf">Мой профиль</button><button class="dcbtn g" id="dcSet">Настройки мессенджера</button></div></div>
+  <style>.dcl{margin:16px 0 4px;font-size:12px;text-transform:uppercase;font-weight:700;color:var(--dc-m)}</style>`);
+  const T=[['','Dark'],['ash','Ash'],['onyx','Onyx'],['light','Light']];
+  T.forEach(([k,l])=>{const b=el(`<button class="dcbtn ${prefs.theme===k?'':'g'}">${l}</button>`);b.onclick=()=>{prefs.theme=k;applyPrefs();m.remove();openDc()};m.querySelector('#dcT').appendChild(b)});
+  cols.forEach(c=>{const s=el(`<div class="dcsw" style="background:${c};border-color:${prefs.accent===c?'#fff':'transparent'}"></div>`);s.onclick=()=>{prefs.accent=c;applyPrefs();m.remove();openDc()};m.querySelector('#dcA').appendChild(s)});
+  m.querySelector('#dcAc').oninput=e=>{prefs.accent=e.target.value;applyPrefs()};
+  m.querySelector('#dcF').oninput=e=>{prefs.font=+e.target.value;m.querySelector('#dcFv').textContent=prefs.font;applyPrefs()};
+  m.querySelector('#dcC').onchange=e=>{prefs.compact=e.target.checked;applyPrefs()};
+  const setB=v=>{LS.setItem(bannerKey(u),v);const p=m.querySelector('#dcBp');p.style.cssText=v.startsWith('data:')?`background-image:url(${v});border-radius:8px`:`background:${v||prefs.accent};border-radius:8px`};
+  setB(LS.getItem(bannerKey(u))||'');
+  cols.forEach(c=>{const s=el(`<div class="dcsw" style="background:${c}"></div>`);s.onclick=()=>setB(c);m.querySelector('#dcBc').appendChild(s)});
+  m.querySelector('#dcBu').onclick=()=>m.querySelector('#dcBf').click();
+  m.querySelector('#dcBr').onclick=()=>setB('');
+  m.querySelector('#dcBf').onchange=e=>{const f=e.target.files[0];if(!f)return;const im=new Image(),r=new FileReader();r.onload=()=>{im.onload=()=>{const c=document.createElement('canvas');c.width=680;c.height=240;c.getContext('2d').drawImage(im,0,0,680,240);setB(c.toDataURL('image/jpeg',.8))};im.src=r.result};r.readAsDataURL(f)};
+  m.querySelector('#dcPrf').onclick=()=>{m.remove();profileCard()};
+  m.querySelector('#dcSet').onclick=()=>{m.remove();window.openSettingsModal&&window.openSettingsModal('profile')};
+}
+/* ---- Звонки: камера, микрофон, демонстрация экрана (выбор окна/экрана — системный диалог браузера) ---- */
+let loc={},tiles={};
+async function startCall(){
+  if(!navigator.mediaDevices)return alert('Нужен https и доступ к устройствам');
+  const o=el(`<div id="dcCall"><div id="dcGrid"></div><div id="dcBar"></div></div>`);document.body.appendChild(o);
+  const grid=o.querySelector('#dcGrid');
+  const tile=(id,label,stream)=>{let t=tiles[id];if(!t){t=el(`<div class="dct"><video autoplay playsinline ${id==='me'?'muted':''}></video><b>${label}</b></div>`);grid.appendChild(t);tiles[id]=t}
+    t.querySelector('video').srcObject=stream};
+  const drop=id=>{if(tiles[id]){tiles[id].remove();delete tiles[id]}};
+  loc={mic:true,cam:false,scr:false,streams:{}};
+  const bar=o.querySelector('#dcBar');
+  const btn=(ic,t,fn)=>{const b=el(`<button class="dcb" title="${t}">${svg(ic)}</button>`);b.onclick=()=>fn(b);bar.appendChild(b);return b};
+  try{loc.streams.mic=await navigator.mediaDevices.getUserMedia({audio:true})}catch(e){loc.mic=false}
+  const hasAudio=()=>loc.streams.mic;
+  btn('mic','Микрофон',b=>{const s=hasAudio();if(!s)return;const on=s.getAudioTracks()[0].enabled=!s.getAudioTracks()[0].enabled;b.classList.toggle('off',!on)});
+  btn('cam','Камера',async b=>{
+    if(loc.streams.cam){loc.streams.cam.getTracks().forEach(t=>t.stop());delete loc.streams.cam;drop('cam');b.classList.remove('off');return}
+    try{loc.streams.cam=await navigator.mediaDevices.getUserMedia({video:true});tile('cam','Вы (камера)',loc.streams.cam);b.classList.add('off')}catch(e){alert('Камера недоступна')}});
+  btn('scr','Демонстрация экрана',async b=>{
+    if(loc.streams.scr){loc.streams.scr.getTracks().forEach(t=>t.stop());delete loc.streams.scr;drop('scr');b.classList.remove('off');return}
+    try{const s=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:30},audio:true,monitorTypeSurfaces:'include',surfaceSwitching:'include'});
+      loc.streams.scr=s;tile('scr','Вы (экран)',s);b.classList.add('off');s.getVideoTracks()[0].onended=()=>b.click&&loc.streams.scr&&b.click()}catch(e){}});
+  const end=btn('end','Завершить',()=>{Object.values(loc.streams).forEach(s=>s.getTracks().forEach(t=>t.stop()));tiles={};o.remove()});end.style.background='#da373c';
+  tile('me',(($('#bottomUserName')||{}).textContent||'Вы'),new MediaStream());
+}
+function hook(){
+  const b=$('#btnCall');
+  if(b&&!b.dataset.dc){b.dataset.dc=1;
+    const v=el('<button title="Видео / экран" class="p-2 rounded-xl" style="color:var(--dc-m)">'+svg('cam')+'</button>');v.onclick=startCall;b.after(v)}
+  const t=$('#chatHeaderTitle');if(t&&!t.dataset.dc){t.dataset.dc=1;t.style.cursor='pointer';t.onclick=profileCard}
+}
+function init(){
+  const f=document.createElement('link');f.rel='stylesheet';f.href='https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap';document.head.appendChild(f);
+  applyPrefs();
+  new MutationObserver(()=>{if(!$('#app').classList.contains('hidden')){if(!$('#dcRail'))renderRail();hook();track()}}).observe(document.body,{childList:true,subtree:true,characterData:true});
+}
+document.readyState==='loading'?document.addEventListener('DOMContentLoaded',init):init();
+})();
+</script>
 </body>
 </html>
