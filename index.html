@@ -142,6 +142,162 @@
       width: 14px;
       background-color: #ffffff;
     }
+
+    /* =========================================================
+       DISCORD СООБЩЕНИЯ И ПАНЕЛЬ ВВОДА
+    ========================================================== */
+    .dc-msg-row {
+      position: relative;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 2px 16px;
+      margin: 0 -12px;
+      border-radius: 4px !important;
+      transition: background-color 0.08s ease;
+    }
+    @media (min-width: 640px) {
+      .dc-msg-row { margin: 0 -24px; padding: 2px 24px; }
+    }
+    .dc-msg-row:hover {
+      background-color: rgba(4, 4, 5, 0.16);
+    }
+    html:not(.dark) .dc-msg-row:hover {
+      background-color: rgba(6, 6, 7, 0.04);
+    }
+    .dc-msg-group-start {
+      margin-top: 14px;
+      padding-top: 4px;
+    }
+    .dc-msg-row:first-child {
+      margin-top: 0;
+    }
+    .dc-msg-gutter {
+      width: 40px;
+      flex-shrink: 0;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+    }
+    .dc-msg-mini-time {
+      font-size: 10px;
+      color: var(--dc-m, #949ba4);
+      opacity: 0;
+      line-height: 22px;
+      user-select: none;
+    }
+    .dc-msg-row:hover .dc-msg-mini-time {
+      opacity: 1;
+    }
+    .dc-msg-body {
+      flex: 1;
+      min-width: 0;
+    }
+    .dc-msg-hover-bar {
+      position: absolute;
+      right: 16px;
+      top: -14px;
+      display: none;
+      align-items: center;
+      gap: 2px;
+      background: var(--dc-2, #2b2d31);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 6px !important;
+      padding: 2px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      z-index: 15;
+    }
+    .dc-msg-row:hover .dc-msg-hover-bar {
+      display: flex;
+    }
+    .dc-hover-btn {
+      width: 28px;
+      height: 26px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px !important;
+      color: var(--dc-m, #949ba4);
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.1s, color 0.1s;
+    }
+    .dc-hover-btn:hover {
+      background: var(--dc-4, #383a40);
+      color: var(--dc-t, #dbdee1);
+    }
+
+    /* Единая капсула ввода в стиле Discord */
+    .dc-composer-shell {
+      display: flex;
+      align-items: flex-end;
+      gap: 6px;
+      background: var(--dc-4, #383a40);
+      border-radius: 8px !important;
+      padding: 5px 8px;
+      min-height: 44px;
+    }
+    html:not(.dark) .dc-composer-shell {
+      background: #ebedef;
+    }
+    .dc-plus-btn {
+      width: 30px;
+      height: 30px;
+      margin-bottom: 2px;
+      border-radius: 50% !important;
+      background: #4e5058;
+      color: #dbdee1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s, transform 0.15s;
+    }
+    .dc-plus-btn:hover {
+      background: #6d6f78;
+      color: #fff;
+    }
+    .dc-plus-btn.open {
+      transform: rotate(45deg);
+      background: var(--hg-accent, #5865f2);
+      color: #fff;
+    }
+    .dc-composer-icon {
+      width: 30px;
+      height: 30px;
+      margin-bottom: 2px;
+      border-radius: 6px !important;
+      color: var(--dc-m, #b5bac1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      cursor: pointer;
+      transition: background 0.12s, color 0.12s;
+    }
+    .dc-composer-icon:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+    }
+    .dc-composer-send {
+      width: 30px;
+      height: 30px;
+      margin-bottom: 2px;
+      border-radius: 6px !important;
+      background: var(--hg-accent, #5865f2);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      cursor: pointer;
+      transition: opacity 0.12s;
+    }
+    .dc-composer-send:hover {
+      opacity: 0.9;
+    }
+
   </style>
 </head>
 
@@ -422,25 +578,43 @@
           <!-- Баннер ограничения (Бан / Канал / ЧС / Мут / Slow Mode) -->
           <div id="composerRestriction" class="hidden py-2.5 px-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-500 text-xs sm:text-sm font-medium text-center"></div>
 
-          <div id="composerControls" class="flex items-end gap-2">
+          <div id="composerControls" class="relative">
             <input id="mediaFileInput" type="file" accept="image/*,video/*" class="hidden" onchange="handleChatMediaSelect(event)" />
-            <button type="button" onclick="triggerChatMediaSelect()" title="Прикрепить фото или видео" class="w-10 h-10 rounded-xl bg-slate-100 dark:bg-[#262421] hover:bg-slate-200 dark:hover:bg-[#322f2b] text-slate-600 dark:text-slate-300 flex items-center justify-center transition flex-shrink-0">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
-              </svg>
-            </button>
-            <button type="button" onclick="openPollModal()" title="Создать опрос" class="w-10 h-10 rounded-xl bg-slate-100 dark:bg-[#262421] hover:bg-slate-200 dark:hover:bg-[#322f2b] text-slate-600 dark:text-slate-300 flex items-center justify-center transition flex-shrink-0 text-sm">📊</button>
-            <button id="btnVoiceRecord" type="button" onclick="toggleVoiceRecording()" title="Голосовое сообщение" class="w-10 h-10 rounded-xl bg-slate-100 dark:bg-[#262421] hover:bg-slate-200 dark:hover:bg-[#322f2b] text-slate-600 dark:text-slate-300 flex items-center justify-center transition flex-shrink-0 text-sm">🎤</button>
-            <div class="flex-1 relative">
-              <textarea id="messageInput" rows="1" placeholder="Написать сообщение..." class="w-full max-h-32 resize-none rounded-2xl bg-slate-100 dark:bg-[#262421] text-slate-900 dark:text-slate-100 placeholder-slate-400 px-4 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/50 transition custom-scroll"></textarea>
-              <button id="btnEmoji" onclick="toggleEmojiPopover(event)" class="absolute right-2 bottom-1.5 p-1.5 rounded-lg hover:bg-slate-200/70 dark:hover:bg-[#36322e] text-slate-500 dark:text-[#8d887c]">😊</button>
-              <div id="emojiPopover" class="hidden absolute bottom-12 right-0 w-64 rounded-2xl bg-white dark:bg-[#211f1d] border border-slate-200 dark:border-[#36322e] shadow-2xl p-2.5 z-30">
-                <div id="emojiGrid" class="grid grid-cols-7 gap-1 text-lg"></div>
-              </div>
+
+            <!-- Компактное меню "+" в стиле Discord -->
+            <div id="dcAttachMenu" class="hidden absolute bottom-14 left-0 w-56 rounded-xl bg-white dark:bg-[#1e1f22] border border-slate-200 dark:border-[#383a40] shadow-2xl p-1.5 z-30 space-y-0.5">
+              <button type="button" onclick="closeDcAttachMenu(); triggerChatMediaSelect();" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-[#35373c] text-xs font-semibold text-left transition">
+                <svg class="w-4 h-4 text-sky-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
+                <span>Прикрепить фото / видео</span>
+              </button>
+              <button type="button" onclick="closeDcAttachMenu(); openPollModal();" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-[#35373c] text-xs font-semibold text-left transition">
+                <span class="w-4 text-center">📊</span>
+                <span>Создать опрос</span>
+              </button>
+              <button type="button" onclick="closeDcAttachMenu(); window.openHypergramGifts && window.openHypergramGifts('shop');" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-[#35373c] text-xs font-semibold text-left transition">
+                <span class="w-4 text-center">🎁</span>
+                <span>Отправить подарок</span>
+              </button>
             </div>
-            <button onclick="sendMessage()" class="w-10 h-10 rounded-xl hg-accent-bg text-white flex items-center justify-center transition active:translate-y-px flex-shrink-0">
-              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-            </button>
+
+            <div id="emojiPopover" class="hidden absolute bottom-14 right-0 w-64 rounded-xl bg-white dark:bg-[#1e1f22] border border-slate-200 dark:border-[#383a40] shadow-2xl p-2.5 z-30">
+              <div id="emojiGrid" class="grid grid-cols-7 gap-1 text-lg"></div>
+            </div>
+
+            <div class="dc-composer-shell">
+              <button id="btnDcPlus" type="button" onclick="toggleDcAttachMenu(event)" title="Добавить вложение, опрос или подарок" class="dc-plus-btn">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/></svg>
+              </button>
+
+              <textarea id="messageInput" rows="1" placeholder="Написать сообщение..." class="flex-1 max-h-32 resize-none bg-transparent text-slate-900 dark:text-[#dbdee1] placeholder-slate-400 px-2 py-1.5 text-sm focus:outline-none custom-scroll" style="background:transparent!important"></textarea>
+
+              <button id="btnEmoji" type="button" onclick="toggleEmojiPopover(event)" title="Эмодзи" class="dc-composer-icon text-base">😊</button>
+              <button type="button" onclick="window.openHypergramGifts && window.openHypergramGifts('shop')" title="Отправить подарок" class="dc-composer-icon text-sm">🎁</button>
+              <button id="btnVoiceRecord" type="button" onclick="toggleVoiceRecording()" title="Голосовое сообщение" class="dc-composer-icon text-sm">🎤</button>
+              <button type="button" onclick="sendMessage()" title="Отправить" class="dc-composer-send">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -926,7 +1100,7 @@
 
     let useCloud = false;
 
-    let usersMap = {};
+    let usersMap = {}; window.__hgUsersMap = () => usersMap;
     let chatsMap = {};
     let messagesList = [];
 
@@ -3588,21 +3762,27 @@
       const mineNew = !!lastM && lastM.senderId === currentUserId && !animatedMsgIds.has(lastM.id);
       if (switched) { msgs.forEach(m => animatedMsgIds.add(m.id)); lastRenderedChatId = chat.id; }
 
-      container.innerHTML = msgs.map(msg => {
+      container.innerHTML = msgs.map((msg, idx) => {
         const isNewMsg = !animatedMsgIds.has(msg.id);
-        const isOut = msg.senderId === currentUserId && chat.type !== 'channel';
-        const sender = usersMap[msg.senderId] || { displayName: 'Пользователь', initials: '?', avatarColor: 'from-slate-500 to-slate-600', badges: {} };
+        const isOut = msg.senderId === currentUserId;
+        const sender = usersMap[msg.senderId] || { displayName: 'Пользователь', username: '@user', initials: '?', avatarColor: 'from-slate-500 to-slate-600', badges: {} };
 
         // Скрытие сообщений от пользователей в чёрном списке
         if (!isOut && settings.blockedUsers.includes(msg.senderId)) {
           return `
-            <div id="msg_${msg.id}" class="flex justify-start">
-              <div class="px-3 py-1.5 rounded-xl bg-slate-200/60 dark:bg-[#1e1c1a] border border-slate-300/60 dark:border-[#2e2b28] text-[11px] text-slate-500 dark:text-[#8d887c] italic">
+            <div id="msg_${msg.id}" class="dc-msg-row">
+              <div class="dc-msg-gutter"></div>
+              <div class="dc-msg-body text-xs text-slate-500 dark:text-[#949ba4] italic py-1">
                 Сообщение от ${escapeHtml(sender.displayName)} скрыто (в чёрном списке)
               </div>
             </div>
           `;
         }
+
+        const prevMsg = idx > 0 ? msgs[idx - 1] : null;
+        const sameAuthor = prevMsg && prevMsg.senderId === msg.senderId && chat.type !== 'channel';
+        const closeInTime = prevMsg && Math.abs((msg.timestamp || 0) - (prevMsg.timestamp || 0)) < 5 * 60 * 1000;
+        const isGrouped = !!(sameAuthor && closeInTime && !msg.replyToId && !msg.forwardedFrom);
 
         let replyHtml = '';
         if (msg.replyToId) {
@@ -3610,9 +3790,10 @@
           if (orig) {
             const origUser = usersMap[orig.senderId]?.displayName || 'Сообщение';
             replyHtml = `
-              <div onclick="scrollToMsg('${orig.id}')" class="mb-1.5 pl-2 py-1 pr-2 rounded-lg bg-black/10 dark:bg-white/10 border-l-2 hg-accent-border cursor-pointer">
-                <div class="text-[11px] font-semibold hg-accent-text">${escapeHtml(origUser)}</div>
-                <div class="text-[11px] opacity-80 truncate max-w-[200px]">${escapeHtml(getMessagePreviewText(orig))}</div>
+              <div onclick="scrollToMsg('${orig.id}')" class="mb-1 flex items-center gap-1.5 text-xs text-slate-500 dark:text-[#b5bac1] cursor-pointer hover:text-white transition">
+                <span class="inline-block w-4 h-2.5 border-l-2 border-t-2 border-slate-500 rounded-tl-md ml-1"></span>
+                <span class="font-semibold hg-accent-text">@${escapeHtml(origUser)}</span>
+                <span class="opacity-80 truncate max-w-[260px]">${escapeHtml(getMessagePreviewText(orig))}</span>
               </div>
             `;
           }
@@ -3620,8 +3801,100 @@
 
         const reactionsHtml = Object.entries(msg.reactions || {}).filter(([, arr]) => arr.length > 0).map(([emoji, arr]) => {
           const mine = arr.includes(currentUserId);
-          return `<button onclick="toggleReaction('${msg.id}','${emoji}')" class="px-2 py-0.5 rounded-full text-xs flex items-center gap-1 ${mine ? 'hg-accent-bg text-white' : 'bg-black/10 dark:bg-white/10'}"><span>${emoji}</span><span class="text-[10px] font-bold">${arr.length}</span></button>`;
+          return `<button onclick="toggleReaction('${msg.id}','${emoji}')" class="px-2 py-0.5 rounded-md text-xs flex items-center gap-1 border transition ${mine ? 'hg-accent-soft hg-accent-border text-white' : 'bg-[#2b2d31] border-transparent hover:border-white/15'}"><span>${emoji}</span><span class="text-[11px] font-bold">${arr.length}</span></button>`;
         }).join('');
+
+        const isRead = isOut ? isMessageRead(msg, chat) : false;
+        const receiptHtml = (isOut && settings.showReadReceipts)
+          ? (isRead
+              ? '<span title="Прочитано" class="hg-sig hg-sig-read ml-1"></span>'
+              : '<span title="Отправлено" class="hg-sig hg-sig-sent ml-1"></span>')
+          : '';
+        const viewsCount = chat.type === 'channel' ? Math.max(1, Array.isArray(msg.views) ? msg.views.length : 1) : 0;
+        const viewsHtml = chat.type === 'channel' ? `<span title="Просмотры" class="inline-flex items-center gap-0.5 ml-1.5 text-[11px] text-[#949ba4]">👁 ${viewsCount}</span>` : '';
+
+        const displayAuthor = chat.type === 'channel' ? chat.title : sender.displayName;
+        const authorBadges = chat.type === 'channel' ? chat.badges : sender.badges;
+        const authorClick = chat.type === 'channel' ? '' : `onclick="openUserProfile('${sender.id}')"`;
+
+        const headerHtml = !isGrouped ? `
+          <div class="flex items-baseline gap-1.5 flex-wrap leading-tight mb-0.5">
+            <span ${authorClick} class="font-semibold text-[15px] text-slate-900 dark:text-[#f2f3f5] ${authorClick ? 'cursor-pointer hover:underline' : ''}">${escapeHtml(displayAuthor)}</span>
+            ${renderBadges(authorBadges, true)}
+            ${(chat.type !== 'channel' && sender.customTitle) ? `<span class="text-[10px] px-1.5 py-0.2 rounded hg-accent-soft hg-accent-text font-semibold">${escapeHtml(sender.customTitle)}</span>` : ''}
+            ${(chat.type === 'channel' && chat.signPosts !== false) ? `<span onclick="openUserProfile('${sender.id}')" class="text-[11px] text-[#949ba4] hover:underline cursor-pointer">• ${escapeHtml(sender.displayName)}</span>` : ''}
+            ${settings.showTimestamps ? `<span class="text-[11px] text-[#949ba4] ml-0.5">${formatTime(msg.timestamp)}</span>` : ''}
+            ${viewsHtml}
+            ${receiptHtml}
+          </div>
+        ` : '';
+
+        const gutterHtml = !isGrouped
+          ? avatarBoxHtml(chat.type === 'channel' ? chat : sender, 'w-10 h-10 rounded-full text-sm cursor-pointer mt-0.5', authorClick)
+          : `<span class="dc-msg-mini-time">${settings.showTimestamps ? formatTime(msg.timestamp) : ''}</span>`;
+
+        return `
+          <div id="msg_${msg.id}" class="dc-msg-row ${!isGrouped ? 'dc-msg-group-start' : ''} ${isNewMsg ? 'msg-animate' : ''}" oncontextmenu="openCtxMenu(event, '${msg.id}')" ondblclick="quickReactMsg('${msg.id}')">
+            <div class="dc-msg-hover-bar">
+              <button type="button" onclick="toggleReaction('${msg.id}','❤️')" title="Нравится" class="dc-hover-btn">❤️</button>
+              <button type="button" onclick="toggleReaction('${msg.id}','🔥')" title="Огонь" class="dc-hover-btn">🔥</button>
+              <button type="button" onclick="ctxMsgId='${msg.id}'; ctxReply();" title="Ответить" class="dc-hover-btn">↩</button>
+              <button type="button" onclick="openCtxMenu(event, '${msg.id}')" title="Ещё" class="dc-hover-btn">⋮</button>
+            </div>
+
+            <div class="dc-msg-gutter">${gutterHtml}</div>
+
+            <div class="dc-msg-body">
+              ${replyHtml}
+              ${headerHtml}
+              ${msg.forwardedFrom ? `<div class="text-[11px] font-semibold text-[#949ba4] mb-0.5">↪ Переслано от ${escapeHtml(msg.forwardedFrom)}</div>` : ''}
+              ${msg.media?.type === 'image' && msg.media?.url ? `
+                <div class="my-1 overflow-hidden rounded-lg inline-block">
+                  <img src="${escapeHtml(msg.media.url)}" alt="" loading="lazy" onclick="openMediaLightbox(this.src, ${JSON.stringify(msg.text || '')})" class="max-w-full max-h-80 rounded-lg object-cover cursor-pointer hover:opacity-95 transition" />
+                </div>
+              ` : ''}
+              ${msg.media?.type === 'video' && msg.media?.url ? `
+                <div class="my-1 overflow-hidden rounded-lg inline-block">
+                  <video src="${escapeHtml(msg.media.url)}" controls playsinline preload="metadata" class="max-w-full max-h-80 rounded-lg bg-black"></video>
+                </div>
+              ` : ''}
+              ${msg.voice?.url ? `
+                <div class="my-1 p-2.5 rounded-lg bg-[#2b2d31] border border-white/10 inline-block space-y-1">
+                  <div class="text-[11px] font-semibold text-[#dbdee1]">🎤 Голосовое • ${Number(msg.voice.durationSec || 1)} сек</div>
+                  <audio src="${escapeHtml(msg.voice.url)}" controls preload="metadata" class="max-w-[260px] h-8"></audio>
+                </div>
+              ` : ''}
+              ${msg.poll ? (() => {
+                const votesMap = msg.poll.votes || {};
+                const allVoterIds = Object.keys(votesMap);
+                const totalVotes = allVoterIds.reduce((acc, k) => acc + (Array.isArray(votesMap[k]) ? votesMap[k].length : 0), 0);
+                const myChoice = Array.isArray(votesMap[currentUserId]) ? votesMap[currentUserId] : [];
+                return `
+                  <div class="my-1 p-3 rounded-lg bg-[#2b2d31] border border-white/10 max-w-md space-y-2">
+                    <div class="text-sm font-bold text-white">📊 ${escapeHtml(msg.poll.question)}</div>
+                    <div class="text-[11px] text-[#949ba4]">${msg.poll.multiple ? 'Несколько вариантов' : 'Один вариант'} • Голосов: ${totalVotes}</div>
+                    <div class="space-y-1.5 pt-0.5">
+                      ${(msg.poll.options || []).map((opt, optIdx) => {
+                        const cnt = Object.values(votesMap).filter(arr => Array.isArray(arr) && arr.includes(optIdx)).length;
+                        const pct = totalVotes > 0 ? Math.round((cnt / totalVotes) * 100) : 0;
+                        const picked = myChoice.includes(optIdx);
+                        return `
+                          <button type="button" onclick="voteInPoll('${msg.id}', ${optIdx})" class="w-full px-3 py-2 rounded-md text-left text-xs border transition flex items-center justify-between gap-2 ${picked ? 'hg-accent-border hg-accent-soft text-white font-bold' : 'border-white/10 bg-[#1e1f22] hover:bg-[#35373c] text-[#dbdee1]'}">
+                            <span class="truncate">${picked ? '✓ ' : ''}${escapeHtml(opt)}</span>
+                            <span class="text-[11px] opacity-85 flex-shrink-0">${cnt} (${pct}%)</span>
+                          </button>
+                        `;
+                      }).join('')}
+                    </div>
+                  </div>
+                `;
+              })() : ''}
+              ${msg.text ? `<div class="hg-msg-text text-slate-900 dark:text-[#dbdee1] leading-[1.375] whitespace-pre-wrap break-words">${formatMessageBodyHtml(msg.text)}${msg.editedAt ? `<span class="text-[10px] text-[#949ba4] ml-1.5">(изменено)</span>` : ''}${isGrouped && receiptHtml ? receiptHtml : ''}</div>` : ''}
+              ${reactionsHtml ? `<div class="flex flex-wrap gap-1 mt-1.5">${reactionsHtml}</div>` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
 
         let senderHeader = '';
         if (!isOut && chat.type === 'group') {
@@ -5354,6 +5627,21 @@
       document.getElementById('mainDrawer').classList.add('-translate-x-full');
     };
 
+    window.toggleDcAttachMenu = function(e) {
+      e.stopPropagation();
+      const menu = document.getElementById('dcAttachMenu');
+      const btn = document.getElementById('btnDcPlus');
+      if (!menu) return;
+      const willOpen = menu.classList.contains('hidden');
+      menu.classList.toggle('hidden', !willOpen);
+      if (btn) btn.classList.toggle('open', willOpen);
+    };
+
+    window.closeDcAttachMenu = function() {
+      document.getElementById('dcAttachMenu')?.classList.add('hidden');
+      document.getElementById('btnDcPlus')?.classList.remove('open');
+    };
+
     window.toggleEmojiPopover = function(e) {
       e.stopPropagation();
       document.getElementById('emojiPopover').classList.toggle('hidden');
@@ -5476,6 +5764,7 @@
       if (!e.target.closest('#msgContextMenu')) document.getElementById('msgContextMenu').classList.add('hidden');
       if (!e.target.closest('#chatContextMenu')) document.getElementById('chatContextMenu')?.classList.add('hidden');
       if (!e.target.closest('#emojiPopover') && !e.target.closest('#btnEmoji')) document.getElementById('emojiPopover').classList.add('hidden');
+      if (!e.target.closest('#dcAttachMenu') && !e.target.closest('#btnDcPlus')) closeDcAttachMenu();
     });
 
     // Запуск
@@ -5596,7 +5885,7 @@ function renderRail(){
   });
   if(list.length<3){const b=el('<button class="dcb dcadd" title="Добавить аккаунт">'+svg('plus')+'</button>');b.onclick=addAccount;r.appendChild(b)}
   const sp=el('<div style="flex:1"></div>');r.appendChild(sp);
-  const g=el('<button class="dcb" title="Настройки Discord-стиля">'+svg('gear')+'</button>');g.onclick=openDc;r.appendChild(g);
+  const g=el('<button class="dcb" title="Настройки профиля и мессенджера">'+svg('gear')+'</button>');g.onclick=()=>{if(window.openSettingsModal)window.openSettingsModal('profile');else openDc();};r.appendChild(g);
   $('#dcHome').onclick=()=>{const b=$('#btnMobileBack');if(b)b.click()};
 }
 function modal(html){
@@ -5692,35 +5981,35 @@ document.readyState==='loading'?document.addEventListener('DOMContentLoaded',ini
      Не затрагивает основной код мессенджера
 ========================================================== -->
 <style id="hgGiftsStyle">
-  .hgg-modal{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:240;display:flex;align-items:center;justify-content:center;padding:12px}
-  .hgg-box{background:var(--dc-2,#1a1917);color:var(--dc-t,#dbdee1);width:min(780px,96vw);max-height:90vh;display:flex;flex-direction:column;border-radius:12px!important;overflow:hidden;border:1px solid rgba(255,255,255,.08)}
-  .hgg-head{padding:16px 20px;background:var(--dc-1,#121110);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .hgg-modal{position:fixed;inset:0;background:rgba(0,0,0,.74);z-index:240;display:flex;align-items:center;justify-content:center;padding:12px}
+  .hgg-box{background:var(--dc-2,#2b2d31);color:var(--dc-t,#dbdee1);width:min(780px,96vw);max-height:90vh;display:flex;flex-direction:column;border-radius:10px!important;overflow:hidden;border:1px solid rgba(255,255,255,.08)}
+  .hgg-head{padding:16px 20px;background:var(--dc-1,#1e1f22);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
   .hgg-balances{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .hgg-bal-star{padding:6px 12px;border-radius:999px!important;background:rgba(245,158,11,.18);color:#fbbf24;font-weight:800;font-size:13px}
   .hgg-bal-moon{padding:6px 12px;border-radius:999px!important;background:rgba(129,140,248,.2);color:#a5b4fc;font-weight:800;font-size:13px}
   .hgg-tabs{display:flex;gap:6px;padding:10px 20px;border-bottom:1px solid rgba(255,255,255,.07);flex-wrap:wrap}
-  .hgg-tab{padding:7px 13px;border-radius:8px!important;font-size:12px;font-weight:700;cursor:pointer;border:0;background:var(--dc-4,#262421);color:var(--dc-m,#949ba4);transition:.15s}
+  .hgg-tab{padding:7px 13px;border-radius:6px!important;font-size:12px;font-weight:700;cursor:pointer;border:0;background:var(--dc-4,#383a40);color:var(--dc-m,#949ba4);transition:.15s}
   .hgg-tab.on{background:var(--hg-accent,#5865f2);color:#fff}
   .hgg-body{padding:16px 20px;overflow:auto;flex:1}
-  .hgg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
-  .hgg-card{background:var(--dc-3,#22201e);border:1px solid rgba(255,255,255,.08);border-radius:10px!important;padding:14px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;position:relative;transition:.15s}
+  .hgg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(176px,1fr));gap:12px}
+  .hgg-card{background:var(--dc-3,#313338);border:1px solid rgba(255,255,255,.08);border-radius:8px!important;padding:14px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;position:relative;transition:.15s}
   .hgg-card:hover{transform:translateY(-2px);border-color:var(--hg-accent,#5865f2)}
-  .hgg-ico{width:68px;height:68px;border-radius:14px!important;display:flex;align-items:center;justify-content:center;font-size:36px;position:relative}
+  .hgg-ico{width:64px;height:64px;border-radius:12px!important;display:flex;align-items:center;justify-content:center;font-size:34px;position:relative}
   .hgg-rar{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;padding:2px 7px;border-radius:999px!important}
   .rar-common{background:rgba(148,163,184,.18);color:#cbd5e1}
   .rar-rare{background:rgba(56,189,248,.18);color:#38bdf8}
   .rar-epic{background:rgba(168,85,247,.2);color:#c084fc}
   .rar-legendary{background:rgba(245,158,11,.22);color:#fbbf24}
   .rar-mythic{background:rgba(244,63,94,.22);color:#fb7185}
-  .hgg-btn{background:var(--hg-accent,#5865f2);color:#fff;border:0;padding:8px 12px;border-radius:8px!important;font-size:12px;font-weight:700;cursor:pointer;width:100%;transition:.15s}
+  .hgg-btn{background:var(--hg-accent,#5865f2);color:#fff;border:0;padding:8px 12px;border-radius:6px!important;font-size:12px;font-weight:700;cursor:pointer;width:100%;transition:.15s}
   .hgg-btn:hover{opacity:.92}
-  .hgg-btn.sec{background:var(--dc-4,#2e2b28);color:var(--dc-t,#dbdee1)}
+  .hgg-btn.sec{background:var(--dc-4,#383a40);color:var(--dc-t,#dbdee1)}
   .hgg-btn.gold{background:#d97706;color:#fff}
   .hgg-btn.moon{background:#4f46e5;color:#fff}
-  .hgg-msg-card{margin-top:6px;padding:12px 14px;border-radius:10px!important;border:1px solid rgba(255,255,255,.14);background:var(--dc-2,#1e1c1a);max-width:280px;cursor:pointer;transition:.15s}
-  .hgg-msg-card:hover{border-color:var(--hg-accent,#5865f2)}
-  .hgg-showcase{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:8px}
-  .hgg-chip{display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:8px!important;background:var(--dc-3,#262421);border:1px solid rgba(255,255,255,.1);font-size:12px;cursor:pointer}
+  .hgg-msg-card{margin-top:4px;padding:12px 14px;border-radius:8px!important;border:1px solid rgba(255,255,255,.12);border-left:4px solid var(--hg-accent,#5865f2);background:var(--dc-2,#2b2d31);width:min(340px,100%);cursor:pointer;transition:.15s;display:block}
+  .hgg-msg-card:hover{border-color:var(--hg-accent,#5865f2);background:#32353b}
+  .hgg-showcase{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .hgg-chip{display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:6px!important;background:var(--dc-3,#313338);border:1px solid rgba(255,255,255,.1);font-size:12px;cursor:pointer}
   .hgg-pin-badge{display:inline-flex;align-items:center;justify-content:center;font-size:13px;margin-left:3px;cursor:pointer}
 </style>
 
@@ -5767,6 +6056,7 @@ document.readyState==='loading'?document.addEventListener('DOMContentLoaded',ini
   const normUser = u => String(u || '').trim().replace(/^@+/, '').toLowerCase();
   const getUid = () => { try { return (JSON.parse(LS.getItem(S_KEY) || 'null') || {}).userId || ''; } catch (e) { return ''; } };
   const hasInfiniteMoons = uid => INFINITE_MOON_USERS.includes(normUser(uid));
+  const getUsersMap = () => (typeof window.__hgUsersMap === 'function' ? window.__hgUsersMap() : {}) || {};
 
   function formatMoonsBalance(uid, rawMoons) {
     if (hasInfiniteMoons(uid)) return '∞ 🌙';
@@ -5784,13 +6074,25 @@ document.readyState==='loading'?document.addEventListener('DOMContentLoaded',ini
     const cleanUid = normUser(uid);
     if (!cleanUid) return { stars: START_STARS, moons: START_MOONS, gifts: [], pinnedGiftId: '' };
     const local = loadLocalDb();
+    const uDoc = getUsersMap()[cleanUid];
+
     if (!local[cleanUid]) {
-      local[cleanUid] = { stars: START_STARS, moons: hasInfiniteMoons(cleanUid) ? 999999999 : START_MOONS, gifts: [], pinnedGiftId: '' };
+      local[cleanUid] = {
+        stars: typeof uDoc?.hgStars === 'number' ? uDoc.hgStars : START_STARS,
+        moons: hasInfiniteMoons(cleanUid) ? 999999999 : (typeof uDoc?.hgMoons === 'number' ? uDoc.hgMoons : START_MOONS),
+        gifts: Array.isArray(uDoc?.hgGifts) ? uDoc.hgGifts : [],
+        pinnedGiftId: uDoc?.hgPinnedGiftId || ''
+      };
       saveLocalDb(local);
-    } else if (typeof local[cleanUid].moons !== 'number') {
-      local[cleanUid].moons = hasInfiniteMoons(cleanUid) ? 999999999 : START_MOONS;
+    } else if (uDoc) {
+      // Синхронизируем с облаком Firestore, если там есть данные пользователя
+      if (typeof uDoc.hgStars === 'number') local[cleanUid].stars = uDoc.hgStars;
+      if (typeof uDoc.hgMoons === 'number') local[cleanUid].moons = hasInfiniteMoons(cleanUid) ? 999999999 : uDoc.hgMoons;
+      if (Array.isArray(uDoc.hgGifts)) local[cleanUid].gifts = uDoc.hgGifts;
+      if (typeof uDoc.hgPinnedGiftId === 'string') local[cleanUid].pinnedGiftId = uDoc.hgPinnedGiftId;
       saveLocalDb(local);
     }
+
     const state = Object.assign({}, local[cleanUid]);
     if (hasInfiniteMoons(cleanUid)) state.moons = Number.POSITIVE_INFINITY;
     return state;
@@ -5811,11 +6113,19 @@ document.readyState==='loading'?document.addEventListener('DOMContentLoaded',ini
       stars: Number.isFinite(next.stars) ? Math.max(0, Math.floor(next.stars)) : (prev.stars || START_STARS),
       moons: savedMoons,
       gifts: Array.isArray(next.gifts) ? next.gifts : (prev.gifts || []),
-      pinnedGiftId: next.pinnedGiftId || ''
+      pinnedGiftId: next.pinnedGiftId !== undefined ? next.pinnedGiftId : (prev.pinnedGiftId || '')
     };
     saveLocalDb(local);
 
-    if (typeof window.dbUpdate === 'function') {
+    const uMap = getUsersMap();
+    if (uMap[cleanUid]) {
+      uMap[cleanUid].hgStars = local[cleanUid].stars;
+      uMap[cleanUid].hgMoons = local[cleanUid].moons;
+      uMap[cleanUid].hgGifts = local[cleanUid].gifts;
+      uMap[cleanUid].hgPinnedGiftId = local[cleanUid].pinnedGiftId;
+    }
+
+    if (typeof window.dbUpdate === 'function' && uMap[cleanUid]) {
       window.dbUpdate('hg_users', cleanUid, {
         hgStars: local[cleanUid].stars,
         hgMoons: local[cleanUid].moons,
@@ -5826,14 +6136,20 @@ document.readyState==='loading'?document.addEventListener('DOMContentLoaded',ini
   }
 
   function getIssuedCount(giftId) {
-    const local = loadLocalDb();
-    let count = 0;
-    Object.values(local).forEach(u => {
-      if (Array.isArray(u.gifts)) {
-        u.gifts.forEach(g => { if (g.giftId === giftId) count++; });
+    const seen = new Set();
+    const uMap = getUsersMap();
+    Object.values(uMap).forEach(u => {
+      if (Array.isArray(u?.hgGifts)) {
+        u.hgGifts.forEach(g => { if (g.giftId === giftId && g.instanceId) seen.add(g.instanceId); });
       }
     });
-    return count;
+    const local = loadLocalDb();
+    Object.values(local).forEach(u => {
+      if (Array.isArray(u?.gifts)) {
+        u.gifts.forEach(g => { if (g.giftId === giftId && g.instanceId) seen.add(g.instanceId); });
+      }
+    });
+    return seen.size;
   }
 
   function formatDate(ts) {
@@ -5856,9 +6172,6 @@ document.readyState==='loading'?document.addEventListener('DOMContentLoaded',ini
     }
   }
 
-  // =========================================================
-  // ДАРЕНИЕ ЛУН ПОЛЬЗОВАТЕЛЯМ (ДЛЯ SHIKARIY)
-  // =========================================================
   async function giftMoonsToUser(targetUserRaw, amountRaw, noteText) {
     const senderId = normUser(getUid());
     const toId = normUser(targetUserRaw);
@@ -5879,9 +6192,6 @@ document.readyState==='loading'?document.addEventListener('DOMContentLoaded',ini
     return true;
   }
 
-  // =========================================================
-  // ПОКУПКА (ЗА ★ ИЛИ 🌙), ПЕРЕДАЧА И УЛУЧШЕНИЕ ПОДАРКА
-  // =========================================================
   async function sendGiftToUser(recipientId, giftId, noteText, isAnon, currency = 'stars') {
     const senderId = normUser(getUid());
     if (!senderId) return alert('Сначала войдите в аккаунт.');
@@ -6005,7 +6315,7 @@ document.readyState==='loading'?document.addEventListener('DOMContentLoaded',ini
           <button id="hggTrClose" style="background:transparent;border:0;color:var(--dc-m);font-size:18px;cursor:pointer">✕</button>
         </div>
         <div class="hgg-body" style="display:grid;gap:12px">
-          <div style="display:flex;align-items:center;gap:12px;background:var(--dc-3,#22201e);padding:12px;border-radius:10px!important">
+          <div style="display:flex;align-items:center;gap:12px;background:var(--dc-3,#313338);padding:12px;border-radius:8px!important">
             <div style="font-size:40px">${g.emoji}</div>
             <div>
               <div style="font-weight:800;font-size:14px">${esc(g.name)} #${g.serial}</div>
@@ -6086,9 +6396,6 @@ document.readyState==='loading'?document.addEventListener('DOMContentLoaded',ini
     renderPinnedGiftOnHeader();
   }
 
-  // =========================================================
-  // МОДАЛЬНЫЕ ОКНА: ВИТРИНА, КОЛЛЕКЦИЯ, ЛУНЫ, ИНСПЕКТ
-  // =========================================================
   function openGiftsModal(initialTab = 'shop', prefillRecipient = '') {
     const uid = normUser(getUid());
     if (!uid) return;
@@ -6145,7 +6452,7 @@ document.readyState==='loading'?document.addEventListener('DOMContentLoaded',ini
 
       if (tab === 'shop') {
         body.innerHTML = `
-          <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-bottom:14px;align-items:end;background:var(--dc-1,#121110);padding:12px;border-radius:10px!important">
+          <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-bottom:14px;align-items:end;background:var(--dc-1,#1e1f22);padding:12px;border-radius:8px!important">
             <div>
               <div style="font-size:11px;color:var(--dc-m);margin-bottom:4px">Кому подарить (@username)</div>
               <input id="hggRecInput" type="text" value="${esc(recipient)}" placeholder="@username" style="width:100%;padding:8px 10px;font-size:13px" />
@@ -6258,7 +6565,7 @@ document.readyState==='loading'?document.addEventListener('DOMContentLoaded',ini
         body.innerHTML = `
           <div style="display:grid;gap:16px">
             ${canGiftMoons ? `
-              <div style="padding:14px;border-radius:10px!important;background:var(--dc-1,#121110);border:1px solid #818cf8">
+              <div style="padding:14px;border-radius:8px!important;background:var(--dc-1,#1e1f22);border:1px solid #818cf8">
                 <div style="font-size:12px;font-weight:800;margin-bottom:8px;color:#a5b4fc">🌙 Подарить Луны пользователю (бесконечный баланс @shikariy)</div>
                 <div style="display:flex;gap:8px;flex-wrap:wrap">
                   <input id="hggGiftMoonUser" type="text" value="${esc(getActivePeerId() || '')}" placeholder="@username получателя" style="flex:1;min-width:140px;padding:8px 10px;font-size:13px" />
@@ -6298,7 +6605,7 @@ document.readyState==='loading'?document.addEventListener('DOMContentLoaded',ini
             </div>
 
             ${isAdminUser ? `
-              <div style="padding:14px;border-radius:10px!important;background:var(--dc-1,#121110);border:1px solid var(--hg-accent)">
+              <div style="padding:14px;border-radius:8px!important;background:var(--dc-1,#1e1f22);border:1px solid var(--hg-accent)">
                 <div style="font-size:12px;font-weight:800;margin-bottom:8px">🛡️ Выдача Звёзд и Лун (Админ-инструмент)</div>
                 <div style="display:flex;gap:8px;flex-wrap:wrap">
                   <input id="hggAdmUser" type="text" placeholder="@username" style="flex:1;min-width:140px;padding:8px 10px;font-size:13px" />
@@ -6376,14 +6683,23 @@ document.readyState==='loading'?document.addEventListener('DOMContentLoaded',ini
   function openGiftInspectModal(ownerId, instanceId) {
     const cleanOwner = normUser(ownerId);
     const st = getUserGiftState(cleanOwner);
-    const g = (st.gifts || []).find(x => x.instanceId === instanceId);
-    if (!g) return;
+    let g = (st.gifts || []).find(x => x.instanceId === instanceId);
+    if (!g) {
+      // Если подарок был передан другому пользователю, ищем по всем коллекциям
+      const allMap = getUsersMap();
+      for (const u of Object.values(allMap)) {
+        const found = (u?.hgGifts || []).find(x => x.instanceId === instanceId);
+        if (found) { g = found; break; }
+      }
+    }
+    if (!g) return alert('Экземпляр подарка не найден или был передан.');
+
     const old = document.getElementById('hggInspectModal');
     if (old) old.remove();
 
     const item = CATALOG.find(x => x.id === g.giftId) || { upgradeCost: 100, moonUpgrade: 60 };
     const rar = RARITY_META[g.rarity] || RARITY_META.common;
-    const isMine = cleanOwner === normUser(getUid());
+    const isMine = (getUserGiftState(normUser(getUid())).gifts || []).some(x => x.instanceId === instanceId);
     const histCount = Array.isArray(g.history) ? g.history.length : 1;
 
     const m = document.createElement('div');
@@ -6402,9 +6718,9 @@ document.readyState==='loading'?document.addEventListener('DOMContentLoaded',ini
           <div style="font-size:74px;line-height:1.1;margin:8px 0">${g.emoji}</div>
           <div style="font-size:20px;font-weight:800">${esc(g.name)}</div>
           ${g.upgraded ? `<div style="display:inline-block;padding:4px 10px;border-radius:999px!important;background:rgba(251,191,36,.2);color:#fbbf24;font-size:11px;font-weight:800;margin-top:4px">✨ Коллекционный фон: ${esc(g.styleName)}</div>` : ''}
-          ${g.note ? `<div style="margin-top:10px;padding:10px;border-radius:8px!important;background:var(--dc-3,#262421);font-size:13px">«${esc(g.note)}»</div>` : ''}
+          ${g.note ? `<div style="margin-top:10px;padding:10px;border-radius:8px!important;background:var(--dc-3,#313338);font-size:13px">«${esc(g.note)}»</div>` : ''}
 
-          <div style="margin-top:14px;text-align:left;background:var(--dc-1,#121110);padding:12px;border-radius:10px!important;font-size:12px;display:grid;gap:6px">
+          <div style="margin-top:14px;text-align:left;background:var(--dc-1,#1e1f22);padding:12px;border-radius:8px!important;font-size:12px;display:grid;gap:6px">
             <div style="display:flex;justify-content:space-between"><span style="color:var(--dc-m)">Владелец:</span><b>@${esc(cleanOwner)}</b></div>
             <div style="display:flex;justify-content:space-between"><span style="color:var(--dc-m)">Отправитель:</span><b>${esc(g.fromName)}</b></div>
             <div style="display:flex;justify-content:space-between"><span style="color:var(--dc-m)">Дата:</span><b>${formatDate(g.receivedAt)}</b></div>
@@ -6431,36 +6747,33 @@ document.readyState==='loading'?document.addEventListener('DOMContentLoaded',ini
     const trBtn = m.querySelector('#hggInspTransferBtn');
     if (trBtn) trBtn.onclick = () => openTransferGiftModal(instanceId);
     const upS = m.querySelector('#hggUpgradeStarsBtn');
-    if (upS) upS.onclick = () => { m.remove(); upgradeGiftInstance(cleanOwner, instanceId, 'stars'); };
+    if (upS) upS.onclick = () => { m.remove(); upgradeGiftInstance(normUser(getUid()), instanceId, 'stars'); };
     const upM = m.querySelector('#hggUpgradeMoonsBtn');
-    if (upM) upM.onclick = () => { m.remove(); upgradeGiftInstance(cleanOwner, instanceId, 'moons'); };
+    if (upM) upM.onclick = () => { m.remove(); upgradeGiftInstance(normUser(getUid()), instanceId, 'moons'); };
   }
 
-  // =========================================================
-  // ИНТЕГРАЦИЯ В ИНТЕРФЕЙС (КНОПКИ, КАРТОЧКИ В ЧАТЕ, ВИТРИНА)
-  // =========================================================
   function enhanceChatGiftMessages() {
     const box = $('#messagesContainer');
     if (!box) return;
     box.querySelectorAll('.hg-msg-text').forEach(el => {
       if (el.dataset.hggParsed) return;
-      const txt = el.textContent || '';
+      const txt = (el.textContent || '').trim();
 
       const mMoon = txt.match(/^🌙\s*\[ЛУНЫ:([^:]+):([^:]+):([^\]]+)\]\s*(.*)$/);
       if (mMoon) {
         el.dataset.hggParsed = '1';
         const [, fromId, toId, amt, note] = mMoon;
         el.innerHTML = `
-          <div class="hgg-msg-card" style="border-color:rgba(129,140,248,.45);cursor:default">
-            <div style="display:flex;align-items:center;gap:10px">
-              <div style="font-size:34px;line-height:1">🌙</div>
+          <div class="hgg-msg-card" style="border-left-color:#818cf8;cursor:default">
+            <div style="display:flex;align-items:center;gap:12px">
+              <div style="font-size:32px;line-height:1">🌙</div>
               <div style="min-width:0;flex:1">
-                <div style="font-size:10px;text-transform:uppercase;font-weight:800;color:#a5b4fc">Подарок в Лунах</div>
-                <div style="font-size:15px;font-weight:800">+${esc(amt)} 🌙</div>
-                <div style="font-size:11px;opacity:.85">@${esc(fromId)} → @${esc(toId)}</div>
+                <div style="font-size:10px;text-transform:uppercase;font-weight:800;color:#a5b4fc;letter-spacing:.04em">Подарок в Лунах</div>
+                <div style="font-size:15px;font-weight:800;color:#fff;margin-top:1px">+${esc(amt)} 🌙</div>
+                <div style="font-size:11px;color:#b5bac1">@${esc(fromId)} → @${esc(toId)}</div>
               </div>
             </div>
-            ${note ? `<div style="margin-top:8px;padding-top:6px;border-top:1px solid rgba(255,255,255,.12);font-size:12px">${esc(note)}</div>` : ''}
+            ${note ? `<div style="margin-top:8px;padding-top:6px;border-top:1px solid rgba(255,255,255,.1);font-size:12px;color:#dbdee1">${esc(note)}</div>` : ''}
           </div>
         `;
         return;
@@ -6472,16 +6785,16 @@ document.readyState==='loading'?document.addEventListener('DOMContentLoaded',ini
         const [, instId, emoji, title, serialTxt, recId, note] = mGift;
         el.innerHTML = `
           <div class="hgg-msg-card" data-inst="${esc(instId)}" data-owner="${esc(recId)}">
-            <div style="display:flex;align-items:center;gap:10px">
-              <div style="font-size:38px;line-height:1">${esc(emoji)}</div>
+            <div style="display:flex;align-items:center;gap:12px">
+              <div style="font-size:36px;line-height:1">${esc(emoji)}</div>
               <div style="min-width:0;flex:1">
-                <div style="font-size:10px;text-transform:uppercase;font-weight:800;opacity:.75">Коллекционный подарок</div>
-                <div style="font-size:14px;font-weight:800">${esc(title)} <span style="opacity:.8">${esc(serialTxt)}</span></div>
-                <div style="font-size:11px;opacity:.8">Для @${esc(recId)}</div>
+                <div style="font-size:10px;text-transform:uppercase;font-weight:800;color:#949ba4;letter-spacing:.04em">Коллекционный подарок</div>
+                <div style="font-size:14px;font-weight:800;color:#fff;margin-top:1px">${esc(title)} <span style="opacity:.8">${esc(serialTxt)}</span></div>
+                <div style="font-size:11px;color:#b5bac1">Для @${esc(recId)}</div>
               </div>
             </div>
-            ${note ? `<div style="margin-top:8px;padding-top:6px;border-top:1px solid rgba(255,255,255,.12);font-size:12px">${esc(note)}</div>` : ''}
-            <div style="margin-top:8px;font-size:11px;font-weight:700;color:var(--hg-accent,#38bdf8)">Нажмите, чтобы осмотреть →</div>
+            ${note ? `<div style="margin-top:8px;padding-top:6px;border-top:1px solid rgba(255,255,255,.1);font-size:12px;color:#dbdee1">${esc(note)}</div>` : ''}
+            <div style="margin-top:8px;font-size:11px;font-weight:700;color:#818cf8">Нажмите, чтобы осмотреть →</div>
           </div>
         `;
         el.querySelector('.hgg-msg-card').onclick = () => openGiftInspectModal(recId, instId);
@@ -6493,16 +6806,16 @@ document.readyState==='loading'?document.addEventListener('DOMContentLoaded',ini
         el.dataset.hggParsed = '1';
         const [, instId, emoji, title, serialTxt, fromId, toId, note] = mTr;
         el.innerHTML = `
-          <div class="hgg-msg-card" style="border-color:rgba(129,140,248,.35)" data-inst="${esc(instId)}" data-owner="${esc(toId)}">
-            <div style="display:flex;align-items:center;gap:10px">
-              <div style="font-size:38px;line-height:1">${esc(emoji)}</div>
+          <div class="hgg-msg-card" style="border-left-color:#818cf8" data-inst="${esc(instId)}" data-owner="${esc(toId)}">
+            <div style="display:flex;align-items:center;gap:12px">
+              <div style="font-size:36px;line-height:1">${esc(emoji)}</div>
               <div style="min-width:0;flex:1">
-                <div style="font-size:10px;text-transform:uppercase;font-weight:800;color:#a5b4fc">⇄ Передача подарка</div>
-                <div style="font-size:14px;font-weight:800">${esc(title)} <span style="opacity:.8">${esc(serialTxt)}</span></div>
-                <div style="font-size:11px;opacity:.85">@${esc(fromId)} → @${esc(toId)}</div>
+                <div style="font-size:10px;text-transform:uppercase;font-weight:800;color:#a5b4fc;letter-spacing:.04em">⇄ Передача подарка</div>
+                <div style="font-size:14px;font-weight:800;color:#fff;margin-top:1px">${esc(title)} <span style="opacity:.8">${esc(serialTxt)}</span></div>
+                <div style="font-size:11px;color:#b5bac1">@${esc(fromId)} → @${esc(toId)}</div>
               </div>
             </div>
-            ${note ? `<div style="margin-top:8px;padding-top:6px;border-top:1px solid rgba(255,255,255,.12);font-size:12px">${esc(note)}</div>` : ''}
+            ${note ? `<div style="margin-top:8px;padding-top:6px;border-top:1px solid rgba(255,255,255,.1);font-size:12px;color:#dbdee1">${esc(note)}</div>` : ''}
             <div style="margin-top:8px;font-size:11px;font-weight:700;color:#a5b4fc">Нажмите, чтобы осмотреть →</div>
           </div>
         `;
@@ -6526,13 +6839,13 @@ document.readyState==='loading'?document.addEventListener('DOMContentLoaded',ini
 
     const wrap = document.createElement('div');
     wrap.id = 'hggProfileShowcase';
-    wrap.style.cssText = 'padding:12px;border-radius:14px;background:var(--dc-3,#262421);border:1px solid rgba(255,255,255,.08);margin-top:10px';
+    wrap.style.cssText = 'padding:12px;border-radius:8px;background:var(--dc-3,#313338);border:1px solid rgba(255,255,255,.08);margin-top:10px';
     wrap.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:6px">
         <span style="font-size:11px;font-weight:800;text-transform:uppercase;opacity:.75">🎁 Коллекция (${gifts.length})</span>
         <div style="display:flex;gap:4px">
-          ${canSendMoons ? `<button id="hggSendMoonsPeerBtn" style="border:0;background:#4f46e5;color:#fff;font-size:11px;font-weight:700;padding:4px 8px;border-radius:8px;cursor:pointer">+🌙</button>` : ''}
-          <button id="hggSendToPeerBtn" style="border:0;background:var(--hg-accent,#5865f2);color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:8px;cursor:pointer">Подарить</button>
+          ${canSendMoons ? `<button id="hggSendMoonsPeerBtn" style="border:0;background:#4f46e5;color:#fff;font-size:11px;font-weight:700;padding:4px 8px;border-radius:6px;cursor:pointer">+🌙</button>` : ''}
+          <button id="hggSendToPeerBtn" style="border:0;background:var(--hg-accent,#5865f2);color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:6px;cursor:pointer">Подарить</button>
         </div>
       </div>
       ${gifts.length ? `
@@ -6579,20 +6892,6 @@ document.readyState==='loading'?document.addEventListener('DOMContentLoaded',ini
   }
 
   function mountGiftButtons() {
-    const controls = $('#composerControls');
-    if (controls && !document.getElementById('hggComposerBtn')) {
-      const btn = document.createElement('button');
-      btn.id = 'hggComposerBtn';
-      btn.type = 'button';
-      btn.title = 'Отправить коллекционный подарок';
-      btn.textContent = '🎁';
-      btn.className = 'w-10 h-10 rounded-xl bg-slate-100 dark:bg-[#262421] hover:bg-slate-200 dark:hover:bg-[#322f2b] text-slate-600 dark:text-slate-300 flex items-center justify-center transition flex-shrink-0 text-sm';
-      btn.onclick = () => openGiftsModal('shop');
-      const refBtn = $('#btnVoiceRecord') || controls.firstElementChild;
-      if (refBtn && refBtn.nextSibling) controls.insertBefore(btn, refBtn.nextSibling);
-      else controls.prepend(btn);
-    }
-
     const rail = $('#dcRail');
     if (rail && !document.getElementById('hggRailBtn')) {
       const gBtn = document.createElement('button');
@@ -6618,7 +6917,7 @@ document.readyState==='loading'?document.addEventListener('DOMContentLoaded',ini
   window.openHypergramGifts = openGiftsModal;
   window.transferHypergramGift = transferGiftInstance;
   window.giftMoonsToUser = giftMoonsToUser;
-  setInterval(tick, 700);
+  setInterval(tick, 600);
   document.addEventListener('DOMContentLoaded', tick);
 })();
 </script>
