@@ -5687,3 +5687,938 @@ document.readyState==='loading'?document.addEventListener('DOMContentLoaded',ini
 </script>
 </body>
 </html>
+<!-- =========================================================
+     МОДУЛЬ КОЛЛЕКЦИОННЫХ ПОДАРКОВ + ЛУНЫ (🌙) + ПЕРЕДАЧА
+     Не затрагивает основной код мессенджера
+========================================================== -->
+<style id="hgGiftsStyle">
+  .hgg-modal{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:240;display:flex;align-items:center;justify-content:center;padding:12px}
+  .hgg-box{background:var(--dc-2,#1a1917);color:var(--dc-t,#dbdee1);width:min(780px,96vw);max-height:90vh;display:flex;flex-direction:column;border-radius:12px!important;overflow:hidden;border:1px solid rgba(255,255,255,.08)}
+  .hgg-head{padding:16px 20px;background:var(--dc-1,#121110);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .hgg-balances{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .hgg-bal-star{padding:6px 12px;border-radius:999px!important;background:rgba(245,158,11,.18);color:#fbbf24;font-weight:800;font-size:13px}
+  .hgg-bal-moon{padding:6px 12px;border-radius:999px!important;background:rgba(129,140,248,.2);color:#a5b4fc;font-weight:800;font-size:13px}
+  .hgg-tabs{display:flex;gap:6px;padding:10px 20px;border-bottom:1px solid rgba(255,255,255,.07);flex-wrap:wrap}
+  .hgg-tab{padding:7px 13px;border-radius:8px!important;font-size:12px;font-weight:700;cursor:pointer;border:0;background:var(--dc-4,#262421);color:var(--dc-m,#949ba4);transition:.15s}
+  .hgg-tab.on{background:var(--hg-accent,#5865f2);color:#fff}
+  .hgg-body{padding:16px 20px;overflow:auto;flex:1}
+  .hgg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
+  .hgg-card{background:var(--dc-3,#22201e);border:1px solid rgba(255,255,255,.08);border-radius:10px!important;padding:14px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;position:relative;transition:.15s}
+  .hgg-card:hover{transform:translateY(-2px);border-color:var(--hg-accent,#5865f2)}
+  .hgg-ico{width:68px;height:68px;border-radius:14px!important;display:flex;align-items:center;justify-content:center;font-size:36px;position:relative}
+  .hgg-rar{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;padding:2px 7px;border-radius:999px!important}
+  .rar-common{background:rgba(148,163,184,.18);color:#cbd5e1}
+  .rar-rare{background:rgba(56,189,248,.18);color:#38bdf8}
+  .rar-epic{background:rgba(168,85,247,.2);color:#c084fc}
+  .rar-legendary{background:rgba(245,158,11,.22);color:#fbbf24}
+  .rar-mythic{background:rgba(244,63,94,.22);color:#fb7185}
+  .hgg-btn{background:var(--hg-accent,#5865f2);color:#fff;border:0;padding:8px 12px;border-radius:8px!important;font-size:12px;font-weight:700;cursor:pointer;width:100%;transition:.15s}
+  .hgg-btn:hover{opacity:.92}
+  .hgg-btn.sec{background:var(--dc-4,#2e2b28);color:var(--dc-t,#dbdee1)}
+  .hgg-btn.gold{background:#d97706;color:#fff}
+  .hgg-btn.moon{background:#4f46e5;color:#fff}
+  .hgg-msg-card{margin-top:6px;padding:12px 14px;border-radius:10px!important;border:1px solid rgba(255,255,255,.14);background:var(--dc-2,#1e1c1a);max-width:280px;cursor:pointer;transition:.15s}
+  .hgg-msg-card:hover{border-color:var(--hg-accent,#5865f2)}
+  .hgg-showcase{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:8px}
+  .hgg-chip{display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:8px!important;background:var(--dc-3,#262421);border:1px solid rgba(255,255,255,.1);font-size:12px;cursor:pointer}
+  .hgg-pin-badge{display:inline-flex;align-items:center;justify-content:center;font-size:13px;margin-left:3px;cursor:pointer}
+</style>
+
+<script id="hgGiftsAddon">
+(function () {
+  const LS = localStorage;
+  const S_KEY = 'hypergram_session_v1';
+  const G_STORE_KEY = 'hg_gifts_local_v1';
+  const START_STARS = 500;
+  const START_MOONS = 250;
+  const INFINITE_MOON_USERS = ['shikariy'];
+
+  const RARITY_META = {
+    common:    { label: 'Обычный',     cls: 'rar-common',    bg: '#334155' },
+    rare:      { label: 'Редкий',      cls: 'rar-rare',      bg: '#0369a1' },
+    epic:      { label: 'Эпический',   cls: 'rar-epic',      bg: '#6d28d9' },
+    legendary: { label: 'Легендарный', cls: 'rar-legendary', bg: '#b45309' },
+    mythic:    { label: 'Мифический',  cls: 'rar-mythic',    bg: '#be123c' }
+  };
+
+  const UPGRADE_STYLES = [
+    { name: 'Королевский индиго', bg: '#3730a3', border: '#818cf8' },
+    { name: 'Чистое золото',      bg: '#92400e', border: '#fbbf24' },
+    { name: 'Изумрудный неон',    bg: '#065f46', border: '#34d399' },
+    { name: 'Кровавый рубин',     bg: '#881337', border: '#fb7185' },
+    { name: 'Кибер-бирюза',       bg: '#155e75', border: '#22d3ee' }
+  ];
+
+  const CATALOG = [
+    { id: 'plush_bear',    name: 'Плюшевый мишка',    emoji: '🧸', price: 25,   moonPrice: 15,  rarity: 'common',    supply: 0,   upgradeCost: 50,   moonUpgrade: 30  },
+    { id: 'red_rose',      name: 'Алая роза',         emoji: '🌹', price: 35,   moonPrice: 20,  rarity: 'common',    supply: 0,   upgradeCost: 60,   moonUpgrade: 35  },
+    { id: 'party_cake',    name: 'Праздничный торт',  emoji: '🎂', price: 50,   moonPrice: 30,  rarity: 'common',    supply: 0,   upgradeCost: 75,   moonUpgrade: 45  },
+    { id: 'crystal_star',  name: 'Звезда Hypergram',  emoji: '🌟', price: 100,  moonPrice: 60,  rarity: 'rare',      supply: 500, upgradeCost: 120,  moonUpgrade: 70  },
+    { id: 'cyber_cat',     name: 'Кибер-кот',         emoji: '🐱', price: 150,  moonPrice: 90,  rarity: 'rare',      supply: 300, upgradeCost: 150,  moonUpgrade: 90  },
+    { id: 'rocket_ship',   name: 'Звёздолёт HG',      emoji: '🚀', price: 250,  moonPrice: 150, rarity: 'epic',      supply: 150, upgradeCost: 220,  moonUpgrade: 130 },
+    { id: 'magic_diamond', name: 'Чистый бриллиант',  emoji: '💎', price: 400,  moonPrice: 240, rarity: 'epic',      supply: 100, upgradeCost: 300,  moonUpgrade: 180 },
+    { id: 'royal_crown',   name: 'Корона Основателя', emoji: '👑', price: 750,  moonPrice: 450, rarity: 'legendary', supply: 50,  upgradeCost: 500,  moonUpgrade: 300 },
+    { id: 'pepe_frog',     name: 'Золотой Пепе',      emoji: '🐸', price: 1000, moonPrice: 600, rarity: 'legendary', supply: 25,  upgradeCost: 650,  moonUpgrade: 400 },
+    { id: 'hyper_core',    name: 'Ядро Сингулярности',emoji: '🔮', price: 2000, moonPrice: 1200,rarity: 'mythic',    supply: 10,  upgradeCost: 1000, moonUpgrade: 600 }
+  ];
+
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const normUser = u => String(u || '').trim().replace(/^@+/, '').toLowerCase();
+  const getUid = () => { try { return (JSON.parse(LS.getItem(S_KEY) || 'null') || {}).userId || ''; } catch (e) { return ''; } };
+  const hasInfiniteMoons = uid => INFINITE_MOON_USERS.includes(normUser(uid));
+
+  function formatMoonsBalance(uid, rawMoons) {
+    if (hasInfiniteMoons(uid)) return '∞ 🌙';
+    return `🌙 ${rawMoons || 0}`;
+  }
+
+  function loadLocalDb() {
+    try { return JSON.parse(LS.getItem(G_STORE_KEY) || '{}') || {}; } catch (e) { return {}; }
+  }
+  function saveLocalDb(data) {
+    try { LS.setItem(G_STORE_KEY, JSON.stringify(data)); } catch (e) {}
+  }
+
+  function getUserGiftState(uid) {
+    const cleanUid = normUser(uid);
+    if (!cleanUid) return { stars: START_STARS, moons: START_MOONS, gifts: [], pinnedGiftId: '' };
+    const local = loadLocalDb();
+    if (!local[cleanUid]) {
+      local[cleanUid] = { stars: START_STARS, moons: hasInfiniteMoons(cleanUid) ? 999999999 : START_MOONS, gifts: [], pinnedGiftId: '' };
+      saveLocalDb(local);
+    } else if (typeof local[cleanUid].moons !== 'number') {
+      local[cleanUid].moons = hasInfiniteMoons(cleanUid) ? 999999999 : START_MOONS;
+      saveLocalDb(local);
+    }
+    const state = Object.assign({}, local[cleanUid]);
+    if (hasInfiniteMoons(cleanUid)) state.moons = Number.POSITIVE_INFINITY;
+    return state;
+  }
+
+  function setUserGiftState(uid, patch) {
+    const cleanUid = normUser(uid);
+    if (!cleanUid) return;
+    const local = loadLocalDb();
+    const prev = getUserGiftState(cleanUid);
+    const prevSavedMoons = hasInfiniteMoons(cleanUid) ? 999999999 : (prev.moons || START_MOONS);
+    const next = Object.assign({}, prev, patch);
+    const savedMoons = hasInfiniteMoons(cleanUid)
+      ? 999999999
+      : (Number.isFinite(next.moons) ? Math.max(0, Math.floor(next.moons)) : prevSavedMoons);
+
+    local[cleanUid] = {
+      stars: Number.isFinite(next.stars) ? Math.max(0, Math.floor(next.stars)) : (prev.stars || START_STARS),
+      moons: savedMoons,
+      gifts: Array.isArray(next.gifts) ? next.gifts : (prev.gifts || []),
+      pinnedGiftId: next.pinnedGiftId || ''
+    };
+    saveLocalDb(local);
+
+    if (typeof window.dbUpdate === 'function') {
+      window.dbUpdate('hg_users', cleanUid, {
+        hgStars: local[cleanUid].stars,
+        hgMoons: local[cleanUid].moons,
+        hgGifts: local[cleanUid].gifts,
+        hgPinnedGiftId: local[cleanUid].pinnedGiftId || ''
+      }).catch(() => {});
+    }
+  }
+
+  function getIssuedCount(giftId) {
+    const local = loadLocalDb();
+    let count = 0;
+    Object.values(local).forEach(u => {
+      if (Array.isArray(u.gifts)) {
+        u.gifts.forEach(g => { if (g.giftId === giftId) count++; });
+      }
+    });
+    return count;
+  }
+
+  function formatDate(ts) {
+    return new Date(ts || Date.now()).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', year: 'numeric' });
+  }
+
+  function getActivePeerId() {
+    const statusTxt = ($('#chatHeaderStatus') || {}).textContent || '';
+    const m = statusTxt.match(/@([a-z0-9_а-яё]+)/i);
+    return m ? m[1].toLowerCase() : '';
+  }
+
+  async function postGiftChatMarker(markerText) {
+    const msgInput = $('#messageInput');
+    if (msgInput && typeof window.sendMessage === 'function') {
+      const prevVal = msgInput.value;
+      msgInput.value = markerText;
+      await window.sendMessage();
+      if (prevVal) msgInput.value = prevVal;
+    }
+  }
+
+  // =========================================================
+  // ДАРЕНИЕ ЛУН ПОЛЬЗОВАТЕЛЯМ (ДЛЯ SHIKARIY)
+  // =========================================================
+  async function giftMoonsToUser(targetUserRaw, amountRaw, noteText) {
+    const senderId = normUser(getUid());
+    const toId = normUser(targetUserRaw);
+    const amount = Math.floor(Number(amountRaw) || 0);
+    if (!senderId) return alert('Сначала войдите в аккаунт.');
+    if (!hasInfiniteMoons(senderId)) return alert('Функция прямого дарения Лун доступна аккаунту @shikariy.');
+    if (!toId) return alert('Укажите @username получателя.');
+    if (toId === senderId) return alert('У вас уже бесконечные Луны!');
+    if (!amount || amount <= 0) return alert('Введите положительное количество Лун.');
+
+    const recState = getUserGiftState(toId);
+    setUserGiftState(toId, { moons: (recState.moons || 0) + amount });
+    setUserGiftState(senderId, {});
+
+    const notePart = noteText ? ' «' + String(noteText).trim().slice(0, 100) + '»' : '';
+    await postGiftChatMarker(`🌙 [ЛУНЫ:${senderId}:${toId}:${amount}]${notePart}`);
+    alert(`Пользователю @${toId} подарено ${amount} 🌙!`);
+    return true;
+  }
+
+  // =========================================================
+  // ПОКУПКА (ЗА ★ ИЛИ 🌙), ПЕРЕДАЧА И УЛУЧШЕНИЕ ПОДАРКА
+  // =========================================================
+  async function sendGiftToUser(recipientId, giftId, noteText, isAnon, currency = 'stars') {
+    const senderId = normUser(getUid());
+    if (!senderId) return alert('Сначала войдите в аккаунт.');
+    recipientId = normUser(recipientId);
+    if (!recipientId) return alert('Укажите @username получателя.');
+
+    const item = CATALOG.find(x => x.id === giftId);
+    if (!item) return;
+
+    const useMoon = currency === 'moons';
+    const cost = useMoon ? item.moonPrice : item.price;
+    const sym = useMoon ? '🌙' : '★';
+    const infMoon = useMoon && hasInfiniteMoons(senderId);
+
+    const senderState = getUserGiftState(senderId);
+    const bal = useMoon ? (senderState.moons || 0) : (senderState.stars || 0);
+    if (!infMoon && bal < cost) {
+      return alert(`Недостаточно ${useMoon ? 'Лун 🌙' : 'Звёзд ★'} (нужно ${cost} ${sym}, у вас ${bal} ${sym}).`);
+    }
+
+    const issued = getIssuedCount(item.id);
+    if (item.supply > 0 && issued >= item.supply) {
+      return alert('Этот коллекционный подарок полностью распродан!');
+    }
+
+    const serial = issued + 1;
+    const instanceId = 'gift_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+    const senderName = ($('#bottomUserName')?.textContent || senderId).trim();
+
+    const giftInstance = {
+      instanceId,
+      giftId: item.id,
+      name: item.name,
+      emoji: item.emoji,
+      rarity: item.rarity,
+      serial,
+      supply: item.supply,
+      fromId: isAnon ? 'anonymous' : senderId,
+      fromName: isAnon ? 'Анонимно' : senderName,
+      note: String(noteText || '').trim().slice(0, 100),
+      receivedAt: Date.now(),
+      upgraded: false,
+      styleName: '',
+      styleBg: '',
+      styleBorder: '',
+      history: [{ from: isAnon ? 'anonymous' : senderId, to: recipientId, at: Date.now() }]
+    };
+
+    if (useMoon) {
+      if (!infMoon) setUserGiftState(senderId, { moons: senderState.moons - cost });
+    } else {
+      setUserGiftState(senderId, { stars: senderState.stars - cost });
+    }
+
+    const recState = getUserGiftState(recipientId);
+    setUserGiftState(recipientId, { gifts: [giftInstance, ...(recState.gifts || [])] });
+
+    const serialTxt = item.supply > 0 ? `#${serial}/${item.supply}` : `#${serial}`;
+    const notePart = noteText ? ' «' + noteText.trim() + '»' : '';
+    await postGiftChatMarker(`🎁 [ПОДАРОК:${instanceId}:${item.emoji}:${item.name}:${serialTxt}:${recipientId}]${notePart}`);
+    return giftInstance;
+  }
+
+  async function transferGiftInstance(instanceId, targetUserRaw, noteText) {
+    const senderId = normUser(getUid());
+    const toId = normUser(targetUserRaw);
+    if (!senderId) return;
+    if (!toId) return alert('Введите @username пользователя, которому хотите передать подарок.');
+    if (toId === senderId) return alert('Нельзя передать подарок самому себе.');
+
+    const senderState = getUserGiftState(senderId);
+    const idx = (senderState.gifts || []).findIndex(g => g.instanceId === instanceId);
+    if (idx === -1) return alert('Подарок не найден в вашей коллекции.');
+
+    const gift = Object.assign({}, senderState.gifts[idx]);
+    const nextSenderGifts = [...senderState.gifts];
+    nextSenderGifts.splice(idx, 1);
+
+    const history = Array.isArray(gift.history) ? [...gift.history] : [];
+    history.push({ from: senderId, to: toId, at: Date.now() });
+
+    const transferredGift = Object.assign({}, gift, {
+      fromId: senderId,
+      fromName: ($('#bottomUserName')?.textContent || senderId).trim(),
+      note: noteText ? String(noteText).trim().slice(0, 100) : gift.note,
+      receivedAt: Date.now(),
+      history
+    });
+
+    const nextPin = senderState.pinnedGiftId === instanceId ? '' : senderState.pinnedGiftId;
+    setUserGiftState(senderId, { gifts: nextSenderGifts, pinnedGiftId: nextPin });
+
+    const recState = getUserGiftState(toId);
+    setUserGiftState(toId, { gifts: [transferredGift, ...(recState.gifts || [])] });
+    renderPinnedGiftOnHeader();
+
+    const serialTxt = transferredGift.supply > 0 ? `#${transferredGift.serial}/${transferredGift.supply}` : `#${transferredGift.serial}`;
+    const notePart = noteText ? ' «' + String(noteText).trim() + '»' : '';
+    await postGiftChatMarker(`⇄ [ПЕРЕДАЧА:${transferredGift.instanceId}:${transferredGift.emoji}:${transferredGift.name}:${serialTxt}:${senderId}:${toId}]${notePart}`);
+    return transferredGift;
+  }
+
+  function openTransferGiftModal(instanceId, prefillTo = '') {
+    const uid = normUser(getUid());
+    const st = getUserGiftState(uid);
+    const g = (st.gifts || []).find(x => x.instanceId === instanceId);
+    if (!g) return;
+
+    const old = document.getElementById('hggTransferModal');
+    if (old) old.remove();
+
+    const m = document.createElement('div');
+    m.id = 'hggTransferModal';
+    m.className = 'hgg-modal';
+    m.style.zIndex = '270';
+    m.onclick = e => { if (e.target === m) m.remove(); };
+    m.innerHTML = `
+      <div class="hgg-box" style="max-width:410px">
+        <div class="hgg-head">
+          <div style="font-weight:800;font-size:15px">⇄ Передать подарок</div>
+          <button id="hggTrClose" style="background:transparent;border:0;color:var(--dc-m);font-size:18px;cursor:pointer">✕</button>
+        </div>
+        <div class="hgg-body" style="display:grid;gap:12px">
+          <div style="display:flex;align-items:center;gap:12px;background:var(--dc-3,#22201e);padding:12px;border-radius:10px!important">
+            <div style="font-size:40px">${g.emoji}</div>
+            <div>
+              <div style="font-weight:800;font-size:14px">${esc(g.name)} #${g.serial}</div>
+              <div style="font-size:11px;color:var(--dc-m)">${g.upgraded ? '✨ Улучшенный: ' + esc(g.styleName) : 'Базовый экземпляр'}</div>
+            </div>
+          </div>
+
+          <div>
+            <div style="font-size:11px;color:var(--dc-m);margin-bottom:4px">Кому передать (@username)</div>
+            <input id="hggTrUser" type="text" value="${esc(prefillTo || getActivePeerId() || '')}" placeholder="@username" style="width:100%;padding:9px 11px;font-size:13px" />
+          </div>
+
+          <div>
+            <div style="font-size:11px;color:var(--dc-m);margin-bottom:4px">Комментарий при передаче (необязательно)</div>
+            <input id="hggTrNote" type="text" maxlength="100" placeholder="Дарю коллекцию..." style="width:100%;padding:9px 11px;font-size:13px" />
+          </div>
+
+          <button id="hggTrConfirm" class="hgg-btn moon">Подтвердить передачу</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(m);
+    m.querySelector('#hggTrClose').onclick = () => m.remove();
+    m.querySelector('#hggTrConfirm').onclick = async () => {
+      const toVal = m.querySelector('#hggTrUser').value;
+      const noteVal = m.querySelector('#hggTrNote').value;
+      const done = await transferGiftInstance(instanceId, toVal, noteVal);
+      if (done) {
+        m.remove();
+        const insp = document.getElementById('hggInspectModal');
+        if (insp) insp.remove();
+        const main = document.getElementById('hggMainModal');
+        if (main) openGiftsModal('inv');
+      }
+    };
+  }
+
+  function upgradeGiftInstance(ownerId, instanceId, currency = 'stars') {
+    const cleanOwner = normUser(ownerId);
+    const st = getUserGiftState(cleanOwner);
+    const idx = (st.gifts || []).findIndex(g => g.instanceId === instanceId);
+    if (idx === -1) return;
+    const g = st.gifts[idx];
+    if (g.upgraded) return;
+    const item = CATALOG.find(x => x.id === g.giftId) || { upgradeCost: 100, moonUpgrade: 60 };
+    const useMoon = currency === 'moons';
+    const cost = useMoon ? item.moonUpgrade : item.upgradeCost;
+    const sym = useMoon ? '🌙' : '★';
+    const bal = useMoon ? (st.moons || 0) : (st.stars || 0);
+    const infMoon = useMoon && hasInfiniteMoons(cleanOwner);
+
+    if (!infMoon && bal < cost) {
+      return alert(`Недостаточно ${useMoon ? 'Лун 🌙' : 'Звёзд ★'} для улучшения (нужно ${cost} ${sym}).`);
+    }
+
+    const style = UPGRADE_STYLES[Math.floor(Math.random() * UPGRADE_STYLES.length)];
+    const updated = Object.assign({}, g, {
+      upgraded: true,
+      styleName: style.name,
+      styleBg: style.bg,
+      styleBorder: style.border
+    });
+    const nextGifts = [...st.gifts];
+    nextGifts[idx] = updated;
+    if (useMoon) {
+      setUserGiftState(cleanOwner, { moons: infMoon ? st.moons : (st.moons - cost), gifts: nextGifts });
+    } else {
+      setUserGiftState(cleanOwner, { stars: st.stars - cost, gifts: nextGifts });
+    }
+    openGiftInspectModal(cleanOwner, instanceId);
+  }
+
+  function togglePinGift(ownerId, instanceId) {
+    const cleanOwner = normUser(ownerId);
+    const st = getUserGiftState(cleanOwner);
+    const nextPin = st.pinnedGiftId === instanceId ? '' : instanceId;
+    setUserGiftState(cleanOwner, { pinnedGiftId: nextPin });
+    renderPinnedGiftOnHeader();
+  }
+
+  // =========================================================
+  // МОДАЛЬНЫЕ ОКНА: ВИТРИНА, КОЛЛЕКЦИЯ, ЛУНЫ, ИНСПЕКТ
+  // =========================================================
+  function openGiftsModal(initialTab = 'shop', prefillRecipient = '') {
+    const uid = normUser(getUid());
+    if (!uid) return;
+    const old = document.getElementById('hggMainModal');
+    if (old) old.remove();
+
+    let tab = initialTab;
+    let selectedGiftId = CATALOG[0].id;
+    let recipient = prefillRecipient || getActivePeerId() || uid;
+
+    const modal = document.createElement('div');
+    modal.id = 'hggMainModal';
+    modal.className = 'hgg-modal';
+    modal.onclick = e => { if (e.target === modal) modal.remove(); };
+    document.body.appendChild(modal);
+
+    function render() {
+      const st = getUserGiftState(uid);
+      const isAdminUser = uid === 'hypergram' || uid === 'danya';
+      const canGiftMoons = hasInfiniteMoons(uid);
+
+      modal.innerHTML = `
+        <div class="hgg-box">
+          <div class="hgg-head">
+            <div>
+              <div style="font-size:17px;font-weight:800">🎁 Коллекционные подарки</div>
+              <div style="font-size:12px;color:var(--dc-m,#949ba4)">Редкие подарки за Звёзды ★ и Луны 🌙 • Передача игрокам</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <div class="hgg-balances">
+                <div class="hgg-bal-star">★ ${st.stars}</div>
+                <div class="hgg-bal-moon">${formatMoonsBalance(uid, st.moons)}</div>
+              </div>
+              <button id="hggCloseBtn" style="background:transparent;border:0;color:var(--dc-m);font-size:18px;cursor:pointer;padding:4px 8px">✕</button>
+            </div>
+          </div>
+
+          <div class="hgg-tabs">
+            <button class="hgg-tab ${tab === 'shop' ? 'on' : ''}" data-tab="shop">Магазин подарков</button>
+            <button class="hgg-tab ${tab === 'inv' ? 'on' : ''}" data-tab="inv">Моя коллекция (${(st.gifts || []).length})</button>
+            <button class="hgg-tab ${tab === 'stars' ? 'on' : ''}" data-tab="stars">Пополнить ★ / 🌙</button>
+          </div>
+
+          <div class="hgg-body" id="hggBody"></div>
+        </div>
+      `;
+
+      modal.querySelector('#hggCloseBtn').onclick = () => modal.remove();
+      modal.querySelectorAll('.hgg-tab').forEach(btn => {
+        btn.onclick = () => { tab = btn.dataset.tab; render(); };
+      });
+
+      const body = modal.querySelector('#hggBody');
+
+      if (tab === 'shop') {
+        body.innerHTML = `
+          <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-bottom:14px;align-items:end;background:var(--dc-1,#121110);padding:12px;border-radius:10px!important">
+            <div>
+              <div style="font-size:11px;color:var(--dc-m);margin-bottom:4px">Кому подарить (@username)</div>
+              <input id="hggRecInput" type="text" value="${esc(recipient)}" placeholder="@username" style="width:100%;padding:8px 10px;font-size:13px" />
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--dc-m);margin-bottom:4px">Подпись к подарку</div>
+              <input id="hggNoteInput" type="text" maxlength="100" placeholder="С наилучшими пожеланиями!" style="width:100%;padding:8px 10px;font-size:13px" />
+            </div>
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;padding-bottom:8px;cursor:pointer">
+              <input id="hggAnonChk" type="checkbox" /> Анонимно
+            </label>
+          </div>
+
+          <div class="hgg-grid">
+            ${CATALOG.map(item => {
+              const rar = RARITY_META[item.rarity];
+              const issued = getIssuedCount(item.id);
+              const left = item.supply > 0 ? Math.max(0, item.supply - issued) : null;
+              const soldOut = item.supply > 0 && left <= 0;
+              return `
+                <div class="hgg-card" style="${selectedGiftId === item.id ? 'border-color:var(--hg-accent,#5865f2)' : ''}">
+                  <span class="hgg-rar ${rar.cls}">${rar.label}</span>
+                  <div class="hgg-ico" style="background:${rar.bg}33">${item.emoji}</div>
+                  <div style="font-weight:700;font-size:13px">${esc(item.name)}</div>
+                  <div style="font-size:11px;color:var(--dc-m)">
+                    ${item.supply > 0 ? `Осталось: <b>${left}</b> из ${item.supply}` : 'Безлимитный выпуск'}
+                  </div>
+                  <button class="hgg-btn ${soldOut ? 'sec' : ''}" data-buy-stars="${item.id}" ${soldOut ? 'disabled' : ''}>
+                    ${soldOut ? 'Распродано' : `За ${item.price} ★`}
+                  </button>
+                  <button class="hgg-btn moon ${soldOut ? 'sec' : ''}" data-buy-moon="${item.id}" ${soldOut ? 'disabled' : ''}>
+                    ${soldOut ? 'Распродано' : `За ${item.moonPrice} 🌙`}
+                  </button>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+
+        const bindBuy = (attr, curr) => {
+          body.querySelectorAll(`[${attr}]`).forEach(btn => {
+            btn.onclick = async () => {
+              const gid = btn.getAttribute(attr);
+              const recVal = body.querySelector('#hggRecInput').value;
+              const noteVal = body.querySelector('#hggNoteInput').value;
+              const anonVal = body.querySelector('#hggAnonChk').checked;
+              const res = await sendGiftToUser(recVal, gid, noteVal, anonVal, curr);
+              if (res) {
+                tab = 'inv';
+                render();
+              }
+            };
+          });
+        };
+        bindBuy('data-buy-stars', 'stars');
+        bindBuy('data-buy-moon', 'moons');
+      } else if (tab === 'inv') {
+        const gifts = st.gifts || [];
+        if (!gifts.length) {
+          body.innerHTML = `<div style="text-align:center;padding:40px 16px;color:var(--dc-m);font-size:13px">У вас пока нет подарков в коллекции. Купите первый в магазине или получите в подарок/передачу!</div>`;
+          return;
+        }
+        body.innerHTML = `
+          <div class="hgg-grid">
+            ${gifts.map(g => {
+              const rar = RARITY_META[g.rarity] || RARITY_META.common;
+              const isPinned = st.pinnedGiftId === g.instanceId;
+              const bgStyle = g.upgraded ? `background:${g.styleBg};border-color:${g.styleBorder}` : '';
+              return `
+                <div class="hgg-card" style="${bgStyle}">
+                  <div style="display:flex;justify-content:space-between;width:100%;align-items:center">
+                    <span class="hgg-rar ${rar.cls}">${g.upgraded ? '★ Улучшен' : rar.label}</span>
+                    <span style="font-size:11px;font-weight:800;opacity:.85">#${g.serial}</span>
+                  </div>
+                  <div class="hgg-ico" style="background:rgba(0,0,0,.22)">${g.emoji}</div>
+                  <div style="font-weight:700;font-size:13px">${esc(g.name)}</div>
+                  <div style="font-size:11px;opacity:.8">От: ${esc(g.fromName)}</div>
+                  <div style="display:flex;gap:6px;width:100%;margin-top:4px">
+                    <button class="hgg-btn sec" data-inspect="${g.instanceId}">Открыть</button>
+                    <button class="hgg-btn moon" data-transfer="${g.instanceId}" title="Передать пользователю">⇄</button>
+                    <button class="hgg-btn ${isPinned ? 'gold' : 'sec'}" data-pin="${g.instanceId}" title="Закрепить рядом с именем">
+                      ${isPinned ? '📌' : '📍'}
+                    </button>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+        body.querySelectorAll('[data-inspect]').forEach(b => {
+          b.onclick = () => openGiftInspectModal(uid, b.dataset.inspect);
+        });
+        body.querySelectorAll('[data-transfer]').forEach(b => {
+          b.onclick = () => openTransferGiftModal(b.dataset.transfer);
+        });
+        body.querySelectorAll('[data-pin]').forEach(b => {
+          b.onclick = () => { togglePinGift(uid, b.dataset.pin); render(); };
+        });
+      } else if (tab === 'stars') {
+        const starPacks = [
+          { amount: 100,  label: 'Стартовый набор ★' },
+          { amount: 500,  label: 'Набор коллекционера ★' },
+          { amount: 1500, label: 'VIP-сундук Звёзд ★' }
+        ];
+        const moonPacks = [
+          { amount: 100,  label: 'Лунный осколок 🌙' },
+          { amount: 300,  label: 'Лунное сияние 🌙' },
+          { amount: 1000, label: 'Полнолуние 🌙' }
+        ];
+        body.innerHTML = `
+          <div style="display:grid;gap:16px">
+            ${canGiftMoons ? `
+              <div style="padding:14px;border-radius:10px!important;background:var(--dc-1,#121110);border:1px solid #818cf8">
+                <div style="font-size:12px;font-weight:800;margin-bottom:8px;color:#a5b4fc">🌙 Подарить Луны пользователю (бесконечный баланс @shikariy)</div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                  <input id="hggGiftMoonUser" type="text" value="${esc(getActivePeerId() || '')}" placeholder="@username получателя" style="flex:1;min-width:140px;padding:8px 10px;font-size:13px" />
+                  <input id="hggGiftMoonAmt" type="number" min="1" value="100" style="width:110px;padding:8px 10px;font-size:13px" />
+                  <input id="hggGiftMoonNote" type="text" maxlength="100" placeholder="Комментарий..." style="flex:1;min-width:140px;padding:8px 10px;font-size:13px" />
+                  <button id="hggGiftMoonBtn" class="hgg-btn moon" style="width:auto;padding:8px 16px">Подарить 🌙</button>
+                </div>
+              </div>
+            ` : ''}
+
+            <div>
+              <div style="font-size:12px;font-weight:800;margin-bottom:8px;color:#fbbf24">★ Звёзды</div>
+              <div class="hgg-grid">
+                ${starPacks.map(p => `
+                  <div class="hgg-card">
+                    <div class="hgg-ico" style="background:rgba(245,158,11,.18)">⭐</div>
+                    <div style="font-weight:800;font-size:16px">+${p.amount} ★</div>
+                    <div style="font-size:11px;color:var(--dc-m)">${p.label}</div>
+                    <button class="hgg-btn gold" data-add-stars="${p.amount}">Получить бесплатно</button>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+
+            <div>
+              <div style="font-size:12px;font-weight:800;margin-bottom:8px;color:#a5b4fc">🌙 Луны</div>
+              <div class="hgg-grid">
+                ${moonPacks.map(p => `
+                  <div class="hgg-card">
+                    <div class="hgg-ico" style="background:rgba(129,140,248,.18)">🌙</div>
+                    <div style="font-weight:800;font-size:16px">${canGiftMoons ? '∞ 🌙' : '+' + p.amount + ' 🌙'}</div>
+                    <div style="font-size:11px;color:var(--dc-m)">${canGiftMoons ? 'У вас уже бесконечные Луны' : p.label}</div>
+                    <button class="hgg-btn moon" data-add-moons="${p.amount}">${canGiftMoons ? 'Бесконечно (∞ 🌙)' : 'Получить бесплатно'}</button>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+
+            ${isAdminUser ? `
+              <div style="padding:14px;border-radius:10px!important;background:var(--dc-1,#121110);border:1px solid var(--hg-accent)">
+                <div style="font-size:12px;font-weight:800;margin-bottom:8px">🛡️ Выдача Звёзд и Лун (Админ-инструмент)</div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                  <input id="hggAdmUser" type="text" placeholder="@username" style="flex:1;min-width:140px;padding:8px 10px;font-size:13px" />
+                  <input id="hggAdmAmt" type="number" value="1000" style="width:110px;padding:8px 10px;font-size:13px" />
+                  <button id="hggAdmGiveStars" class="hgg-btn gold" style="width:auto;padding:8px 14px">Выдать ★</button>
+                  <button id="hggAdmGiveMoons" class="hgg-btn moon" style="width:auto;padding:8px 14px">Выдать 🌙</button>
+                </div>
+              </div>
+            ` : ''}
+          </div>
+        `;
+
+        const giftMoonBtn = body.querySelector('#hggGiftMoonBtn');
+        if (giftMoonBtn) {
+          giftMoonBtn.onclick = async () => {
+            const toVal = body.querySelector('#hggGiftMoonUser').value;
+            const amtVal = body.querySelector('#hggGiftMoonAmt').value;
+            const noteVal = body.querySelector('#hggGiftMoonNote').value;
+            await giftMoonsToUser(toVal, amtVal, noteVal);
+            render();
+          };
+        }
+
+        body.querySelectorAll('[data-add-stars]').forEach(b => {
+          b.onclick = () => {
+            const add = Number(b.dataset.addStars) || 0;
+            const cur = getUserGiftState(uid);
+            setUserGiftState(uid, { stars: (cur.stars || 0) + add });
+            render();
+          };
+        });
+        body.querySelectorAll('[data-add-moons]').forEach(b => {
+          b.onclick = () => {
+            if (canGiftMoons) {
+              setUserGiftState(uid, {});
+              render();
+              return;
+            }
+            const add = Number(b.dataset.addMoons) || 0;
+            const cur = getUserGiftState(uid);
+            setUserGiftState(uid, { moons: (cur.moons || 0) + add });
+            render();
+          };
+        });
+        const admStarsBtn = body.querySelector('#hggAdmGiveStars');
+        const admMoonsBtn = body.querySelector('#hggAdmGiveMoons');
+        if (admStarsBtn) {
+          admStarsBtn.onclick = () => {
+            const target = normUser(body.querySelector('#hggAdmUser').value);
+            const amt = Number(body.querySelector('#hggAdmAmt').value) || 0;
+            if (!target || !amt) return;
+            const tState = getUserGiftState(target);
+            setUserGiftState(target, { stars: (tState.stars || 0) + amt });
+            alert(`Пользователю @${target} начислено ${amt} ★!`);
+            render();
+          };
+        }
+        if (admMoonsBtn) {
+          admMoonsBtn.onclick = () => {
+            const target = normUser(body.querySelector('#hggAdmUser').value);
+            const amt = Number(body.querySelector('#hggAdmAmt').value) || 0;
+            if (!target || !amt) return;
+            const tState = getUserGiftState(target);
+            setUserGiftState(target, { moons: (tState.moons || 0) + amt });
+            alert(`Пользователю @${target} начислено ${amt} 🌙!`);
+            render();
+          };
+        }
+      }
+    }
+
+    render();
+  }
+
+  function openGiftInspectModal(ownerId, instanceId) {
+    const cleanOwner = normUser(ownerId);
+    const st = getUserGiftState(cleanOwner);
+    const g = (st.gifts || []).find(x => x.instanceId === instanceId);
+    if (!g) return;
+    const old = document.getElementById('hggInspectModal');
+    if (old) old.remove();
+
+    const item = CATALOG.find(x => x.id === g.giftId) || { upgradeCost: 100, moonUpgrade: 60 };
+    const rar = RARITY_META[g.rarity] || RARITY_META.common;
+    const isMine = cleanOwner === normUser(getUid());
+    const histCount = Array.isArray(g.history) ? g.history.length : 1;
+
+    const m = document.createElement('div');
+    m.id = 'hggInspectModal';
+    m.className = 'hgg-modal';
+    m.style.zIndex = '260';
+    m.onclick = e => { if (e.target === m) m.remove(); };
+    m.innerHTML = `
+      <div class="hgg-box" style="max-width:410px">
+        <div class="hgg-head" style="${g.upgraded ? `background:${g.styleBg}` : ''}">
+          <span class="hgg-rar ${rar.cls}">${rar.label}</span>
+          <span style="font-weight:800;font-size:13px">Экземпляр #${g.serial}${g.supply > 0 ? ' / ' + g.supply : ''}</span>
+          <button id="hggInspClose" style="background:transparent;border:0;color:#fff;font-size:18px;cursor:pointer">✕</button>
+        </div>
+        <div class="hgg-body" style="text-align:center">
+          <div style="font-size:74px;line-height:1.1;margin:8px 0">${g.emoji}</div>
+          <div style="font-size:20px;font-weight:800">${esc(g.name)}</div>
+          ${g.upgraded ? `<div style="display:inline-block;padding:4px 10px;border-radius:999px!important;background:rgba(251,191,36,.2);color:#fbbf24;font-size:11px;font-weight:800;margin-top:4px">✨ Коллекционный фон: ${esc(g.styleName)}</div>` : ''}
+          ${g.note ? `<div style="margin-top:10px;padding:10px;border-radius:8px!important;background:var(--dc-3,#262421);font-size:13px">«${esc(g.note)}»</div>` : ''}
+
+          <div style="margin-top:14px;text-align:left;background:var(--dc-1,#121110);padding:12px;border-radius:10px!important;font-size:12px;display:grid;gap:6px">
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--dc-m)">Владелец:</span><b>@${esc(cleanOwner)}</b></div>
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--dc-m)">Отправитель:</span><b>${esc(g.fromName)}</b></div>
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--dc-m)">Дата:</span><b>${formatDate(g.receivedAt)}</b></div>
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--dc-m)">Владельцев в истории:</span><b>${histCount}</b></div>
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--dc-m)">Статус:</span><b>${g.upgraded ? 'Улучшенный коллекционный' : 'Базовый'}</b></div>
+          </div>
+
+          ${isMine ? `
+            <div style="display:grid;gap:8px;margin-top:14px">
+              <button id="hggInspTransferBtn" class="hgg-btn moon">⇄ Передать пользователю</button>
+              ${!g.upgraded ? `
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                  <button id="hggUpgradeStarsBtn" class="hgg-btn gold">✨ За ${item.upgradeCost} ★</button>
+                  <button id="hggUpgradeMoonsBtn" class="hgg-btn sec">🌙 За ${item.moonUpgrade} 🌙</button>
+                </div>
+              ` : ''}
+            </div>
+          ` : ''}
+        </div>
+      </div>
+    `;
+    document.body.appendChild(m);
+    m.querySelector('#hggInspClose').onclick = () => m.remove();
+    const trBtn = m.querySelector('#hggInspTransferBtn');
+    if (trBtn) trBtn.onclick = () => openTransferGiftModal(instanceId);
+    const upS = m.querySelector('#hggUpgradeStarsBtn');
+    if (upS) upS.onclick = () => { m.remove(); upgradeGiftInstance(cleanOwner, instanceId, 'stars'); };
+    const upM = m.querySelector('#hggUpgradeMoonsBtn');
+    if (upM) upM.onclick = () => { m.remove(); upgradeGiftInstance(cleanOwner, instanceId, 'moons'); };
+  }
+
+  // =========================================================
+  // ИНТЕГРАЦИЯ В ИНТЕРФЕЙС (КНОПКИ, КАРТОЧКИ В ЧАТЕ, ВИТРИНА)
+  // =========================================================
+  function enhanceChatGiftMessages() {
+    const box = $('#messagesContainer');
+    if (!box) return;
+    box.querySelectorAll('.hg-msg-text').forEach(el => {
+      if (el.dataset.hggParsed) return;
+      const txt = el.textContent || '';
+
+      const mMoon = txt.match(/^🌙\s*\[ЛУНЫ:([^:]+):([^:]+):([^\]]+)\]\s*(.*)$/);
+      if (mMoon) {
+        el.dataset.hggParsed = '1';
+        const [, fromId, toId, amt, note] = mMoon;
+        el.innerHTML = `
+          <div class="hgg-msg-card" style="border-color:rgba(129,140,248,.45);cursor:default">
+            <div style="display:flex;align-items:center;gap:10px">
+              <div style="font-size:34px;line-height:1">🌙</div>
+              <div style="min-width:0;flex:1">
+                <div style="font-size:10px;text-transform:uppercase;font-weight:800;color:#a5b4fc">Подарок в Лунах</div>
+                <div style="font-size:15px;font-weight:800">+${esc(amt)} 🌙</div>
+                <div style="font-size:11px;opacity:.85">@${esc(fromId)} → @${esc(toId)}</div>
+              </div>
+            </div>
+            ${note ? `<div style="margin-top:8px;padding-top:6px;border-top:1px solid rgba(255,255,255,.12);font-size:12px">${esc(note)}</div>` : ''}
+          </div>
+        `;
+        return;
+      }
+
+      const mGift = txt.match(/^🎁\s*\[ПОДАРОК:([^:]+):([^:]+):([^:]+):([^:]+):([^\]]+)\]\s*(.*)$/);
+      if (mGift) {
+        el.dataset.hggParsed = '1';
+        const [, instId, emoji, title, serialTxt, recId, note] = mGift;
+        el.innerHTML = `
+          <div class="hgg-msg-card" data-inst="${esc(instId)}" data-owner="${esc(recId)}">
+            <div style="display:flex;align-items:center;gap:10px">
+              <div style="font-size:38px;line-height:1">${esc(emoji)}</div>
+              <div style="min-width:0;flex:1">
+                <div style="font-size:10px;text-transform:uppercase;font-weight:800;opacity:.75">Коллекционный подарок</div>
+                <div style="font-size:14px;font-weight:800">${esc(title)} <span style="opacity:.8">${esc(serialTxt)}</span></div>
+                <div style="font-size:11px;opacity:.8">Для @${esc(recId)}</div>
+              </div>
+            </div>
+            ${note ? `<div style="margin-top:8px;padding-top:6px;border-top:1px solid rgba(255,255,255,.12);font-size:12px">${esc(note)}</div>` : ''}
+            <div style="margin-top:8px;font-size:11px;font-weight:700;color:var(--hg-accent,#38bdf8)">Нажмите, чтобы осмотреть →</div>
+          </div>
+        `;
+        el.querySelector('.hgg-msg-card').onclick = () => openGiftInspectModal(recId, instId);
+        return;
+      }
+
+      const mTr = txt.match(/^⇄\s*\[ПЕРЕДАЧА:([^:]+):([^:]+):([^:]+):([^:]+):([^:]+):([^\]]+)\]\s*(.*)$/);
+      if (mTr) {
+        el.dataset.hggParsed = '1';
+        const [, instId, emoji, title, serialTxt, fromId, toId, note] = mTr;
+        el.innerHTML = `
+          <div class="hgg-msg-card" style="border-color:rgba(129,140,248,.35)" data-inst="${esc(instId)}" data-owner="${esc(toId)}">
+            <div style="display:flex;align-items:center;gap:10px">
+              <div style="font-size:38px;line-height:1">${esc(emoji)}</div>
+              <div style="min-width:0;flex:1">
+                <div style="font-size:10px;text-transform:uppercase;font-weight:800;color:#a5b4fc">⇄ Передача подарка</div>
+                <div style="font-size:14px;font-weight:800">${esc(title)} <span style="opacity:.8">${esc(serialTxt)}</span></div>
+                <div style="font-size:11px;opacity:.85">@${esc(fromId)} → @${esc(toId)}</div>
+              </div>
+            </div>
+            ${note ? `<div style="margin-top:8px;padding-top:6px;border-top:1px solid rgba(255,255,255,.12);font-size:12px">${esc(note)}</div>` : ''}
+            <div style="margin-top:8px;font-size:11px;font-weight:700;color:#a5b4fc">Нажмите, чтобы осмотреть →</div>
+          </div>
+        `;
+        el.querySelector('.hgg-msg-card').onclick = () => openGiftInspectModal(toId, instId);
+      }
+    });
+  }
+
+  function enhanceRightProfileShowcase() {
+    const panel = $('#rightInfoContent');
+    if (!panel || panel.querySelector('#hggProfileShowcase')) return;
+    const handleEl = panel.querySelector('.hg-accent-text');
+    if (!handleEl) return;
+    const rawHandle = (handleEl.textContent || '').trim();
+    if (!rawHandle.startsWith('@')) return;
+    const targetId = normUser(rawHandle);
+    const st = getUserGiftState(targetId);
+    const gifts = st.gifts || [];
+    const curUid = normUser(getUid());
+    const canSendMoons = hasInfiniteMoons(curUid) && curUid !== targetId;
+
+    const wrap = document.createElement('div');
+    wrap.id = 'hggProfileShowcase';
+    wrap.style.cssText = 'padding:12px;border-radius:14px;background:var(--dc-3,#262421);border:1px solid rgba(255,255,255,.08);margin-top:10px';
+    wrap.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:6px">
+        <span style="font-size:11px;font-weight:800;text-transform:uppercase;opacity:.75">🎁 Коллекция (${gifts.length})</span>
+        <div style="display:flex;gap:4px">
+          ${canSendMoons ? `<button id="hggSendMoonsPeerBtn" style="border:0;background:#4f46e5;color:#fff;font-size:11px;font-weight:700;padding:4px 8px;border-radius:8px;cursor:pointer">+🌙</button>` : ''}
+          <button id="hggSendToPeerBtn" style="border:0;background:var(--hg-accent,#5865f2);color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:8px;cursor:pointer">Подарить</button>
+        </div>
+      </div>
+      ${gifts.length ? `
+        <div class="hgg-showcase">
+          ${gifts.slice(0, 8).map(g => `
+            <span class="hgg-chip" data-inst="${esc(g.instanceId)}" title="${esc(g.name)} #${g.serial}">
+              <span>${g.emoji}</span>
+              <span style="font-size:10px;font-weight:700">#${g.serial}</span>
+            </span>
+          `).join('')}
+        </div>
+      ` : `<div style="font-size:11px;opacity:.65">Подарков пока нет — станьте первым дарителем!</div>`}
+    `;
+    panel.appendChild(wrap);
+    wrap.querySelector('#hggSendToPeerBtn').onclick = () => openGiftsModal('shop', targetId);
+    const mBtn = wrap.querySelector('#hggSendMoonsPeerBtn');
+    if (mBtn) {
+      mBtn.onclick = async () => {
+        const amt = prompt(`Сколько Лун 🌙 подарить @${targetId}?`, '100');
+        if (amt !== null) await giftMoonsToUser(targetId, amt, '');
+      };
+    }
+    wrap.querySelectorAll('.hgg-chip').forEach(ch => {
+      ch.onclick = () => openGiftInspectModal(targetId, ch.dataset.inst);
+    });
+  }
+
+  function renderPinnedGiftOnHeader() {
+    const uid = normUser(getUid());
+    const nameEl = $('#bottomUserName');
+    if (!uid || !nameEl) return;
+    const old = nameEl.querySelector('.hgg-pin-badge');
+    if (old) old.remove();
+    const st = getUserGiftState(uid);
+    if (!st.pinnedGiftId) return;
+    const pinned = (st.gifts || []).find(g => g.instanceId === st.pinnedGiftId);
+    if (!pinned) return;
+    const badge = document.createElement('span');
+    badge.className = 'hgg-pin-badge';
+    badge.textContent = pinned.emoji;
+    badge.title = `${pinned.name} #${pinned.serial}`;
+    badge.onclick = e => { e.stopPropagation(); openGiftInspectModal(uid, pinned.instanceId); };
+    nameEl.appendChild(badge);
+  }
+
+  function mountGiftButtons() {
+    const controls = $('#composerControls');
+    if (controls && !document.getElementById('hggComposerBtn')) {
+      const btn = document.createElement('button');
+      btn.id = 'hggComposerBtn';
+      btn.type = 'button';
+      btn.title = 'Отправить коллекционный подарок';
+      btn.textContent = '🎁';
+      btn.className = 'w-10 h-10 rounded-xl bg-slate-100 dark:bg-[#262421] hover:bg-slate-200 dark:hover:bg-[#322f2b] text-slate-600 dark:text-slate-300 flex items-center justify-center transition flex-shrink-0 text-sm';
+      btn.onclick = () => openGiftsModal('shop');
+      const refBtn = $('#btnVoiceRecord') || controls.firstElementChild;
+      if (refBtn && refBtn.nextSibling) controls.insertBefore(btn, refBtn.nextSibling);
+      else controls.prepend(btn);
+    }
+
+    const rail = $('#dcRail');
+    if (rail && !document.getElementById('hggRailBtn')) {
+      const gBtn = document.createElement('button');
+      gBtn.id = 'hggRailBtn';
+      gBtn.className = 'dcb';
+      gBtn.title = 'Коллекционные подарки • Звёзды ★ и Луны 🌙';
+      gBtn.textContent = '🎁';
+      gBtn.onclick = () => openGiftsModal('shop');
+      const gearBtn = rail.lastElementChild;
+      if (gearBtn) rail.insertBefore(gBtn, gearBtn);
+      else rail.appendChild(gBtn);
+    }
+  }
+
+  function tick() {
+    if (!getUid()) return;
+    mountGiftButtons();
+    enhanceChatGiftMessages();
+    enhanceRightProfileShowcase();
+    renderPinnedGiftOnHeader();
+  }
+
+  window.openHypergramGifts = openGiftsModal;
+  window.transferHypergramGift = transferGiftInstance;
+  window.giftMoonsToUser = giftMoonsToUser;
+  setInterval(tick, 700);
+  document.addEventListener('DOMContentLoaded', tick);
+})();
+</script>
