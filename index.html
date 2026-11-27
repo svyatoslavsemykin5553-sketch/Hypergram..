@@ -5563,7 +5563,7 @@ function track(){
   const bg=a?getComputedStyle(a).backgroundColor:'#5865f2',img=a&&a.querySelector('img')?a.querySelector('img').src:'';
   const rec={userId:u,name,handle:h,bg,img,ini:name.slice(0,2).toUpperCase()};
   const i=list.findIndex(x=>x.userId===u);
-  if(i>=0)list[i]=rec;else if(list.length<3)list.push(rec);else return;
+  if(i>=0){if(JSON.stringify(list[i])===JSON.stringify(rec))return;list[i]=rec}else if(list.length<3)list.push(rec);else return;
   LS.setItem(K,JSON.stringify(list));renderRail();
 }
 function avatarHtml(r){return r.img?`<img src="${r.img}" style="width:100%;height:100%;object-fit:cover">`:`<span style="background:${r.bg};width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#fff">${r.ini}</span>`}
@@ -5675,7 +5675,12 @@ function hook(){
 function init(){
   const f=document.createElement('link');f.rel='stylesheet';f.href='https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap';document.head.appendChild(f);
   applyPrefs();
-  new MutationObserver(()=>{if(!$('#app').classList.contains('hidden')){if(!$('#dcRail'))renderRail();hook();track()}}).observe(document.body,{childList:true,subtree:true,characterData:true});
+  let tm=null;
+  const run=()=>{tm=null;const a=$('#app');if(!a||a.classList.contains('hidden'))return;if(!$('#dcRail'))renderRail();hook();track()};
+  const mo=new MutationObserver(()=>{if(tm)return;tm=setTimeout(run,400)});
+  mo.observe($('#app')||document.body,{attributes:true,attributeFilter:['class']});
+  const nm=$('#bottomUserName');if(nm)mo.observe(nm,{childList:true,characterData:true,subtree:true});
+  setInterval(run,1500);
 }
 document.readyState==='loading'?document.addEventListener('DOMContentLoaded',init):init();
 })();
